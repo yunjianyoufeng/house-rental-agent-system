@@ -1,0 +1,8 @@
+fastapi
+httpx
+langgraph
+openai
+pydantic-settings
+redis
+sqlite-vec==0.1.9
+uvicorn

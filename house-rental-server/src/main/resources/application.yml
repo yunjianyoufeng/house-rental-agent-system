@@ -1,0 +1,45 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+ai:
+  deepseek:
+    base-url: https://api.deepseek.com
+    model: deepseek-v4-flash
+    api-key: ${DEEPSEEK_API_KEY:}
+  agent:
+    chat-url: ${AGENT_CHAT_URL:http://127.0.0.1:8001/api/agent/chat}
+  recommend:
+    embedding-url: http://localhost:9000/semantic-recommend
+
+spring:
+  application:
+    name: house-rental-server
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/house_rental?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:5000}
+
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:10MB}
+      max-request-size: ${MAX_REQUEST_SIZE:30MB}
+
+
+app:
+  payment:
+    demo-mode: ${PAYMENT_DEMO_MODE:true}
+    app-name: ${PAYMENT_APP_NAME:house-rental-system}
+
+
+  upload:
+    base-dir: ${UPLOAD_BASE_DIR:./uploads}

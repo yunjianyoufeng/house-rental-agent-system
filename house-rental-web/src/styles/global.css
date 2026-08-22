@@ -1,0 +1,125 @@
+:root {
+  --page-bg: #f3f7fb;
+  --page-bg-soft: linear-gradient(180deg, #f7fbff 0%, #f3f7fb 35%, #eef3f8 100%);
+  --card-bg: rgba(255, 255, 255, 0.96);
+  --text-main: #1f2937;
+  --text-secondary: #667085;
+  --border-color: #e5e7eb;
+  --primary-color: #409eff;
+  --shadow-color: rgba(15, 23, 42, 0.08);
+  --shadow-strong: 0 18px 40px rgba(15, 23, 42, 0.08);
+  --radius-lg: 20px;
+  --radius-md: 14px;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--page-bg-soft);
+  color: var(--text-main);
+  font-family:
+    'Microsoft YaHei',
+    'PingFang SC',
+    Arial,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+}
+
+.page-container {
+  padding: 24px;
+}
+
+.section-card {
+  margin-bottom: 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: var(--shadow-strong);
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+}
+
+.section-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sub-title {
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.el-card {
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow: var(--shadow-strong) !important;
+  background: var(--card-bg) !important;
+  backdrop-filter: blur(12px);
+}
+
+.el-button {
+  border-radius: 10px !important;
+  font-weight: 600;
+}
+
+.el-button--primary,
+.el-button--success,
+.el-button--warning,
+.el-button--danger {
+  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.15);
+}
+
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper,
+.el-input-number {
+  border-radius: 12px !important;
+}
+
+.el-table {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.el-table th.el-table__cell {
+  background: #f8fafc !important;
+  color: #606266 !important;
+  font-weight: 700;
+}
+
+.el-table td.el-table__cell,
+.el-table th.el-table__cell {
+  padding: 14px 0;
+}
+
+.el-tag {
+  border-radius: 8px;
+}
+
+.table-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.table-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.data-empty-hint {
+  color: var(--text-secondary);
+  font-size: 13px;
+}

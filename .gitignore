@@ -1,0 +1,35 @@
+# Local secrets
+**/.env
+**/.env.*
+!**/.env.example
+
+# IDE and operating system files
+**/.idea/
+**/.vscode/
+**/*.iml
+**/.DS_Store
+**/Thumbs.db
+
+# Java build output and runtime uploads
+**/target/
+**/uploads/
+**/*.log
+
+# Node.js build output
+**/node_modules/
+**/dist/
+**/.eslintcache
+
+# Python environments and caches
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Generated vector indexes and legacy delivery archives
+agent-service/data/rag/*
+!agent-service/data/rag/.gitkeep
+*.zip
