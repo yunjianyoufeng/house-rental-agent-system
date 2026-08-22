@@ -12,6 +12,46 @@
 - 知识问答：`sqlite-vec` 本地向量检索，覆盖平台办理流程
 - GitHub 安全：密钥通过环境变量配置，本地环境和生成文件均已忽略
 
+## 系统展示
+
+### Agent 预约二次确认
+
+智能助手先展示房源、地址、租金、看房时间和备注。只有租客在下一轮明确确认后，系统才通过业务接口正式创建预约，避免模型误操作。
+
+![Agent 预约二次确认](docs/images/agent-appointment-confirmation.png)
+
+### RAG 平台知识问答
+
+以下问答检索的是本项目知识库中的租房申请、合同订单和报修流程，不使用模型常识编造平台规则。
+
+| 租房申请审核通过后的自动流程 | 租客报修条件 |
+|---|---|
+| ![租房申请 RAG 问答](docs/images/rag-application-qa.png) | ![报修流程 RAG 问答](docs/images/rag-repair-qa.png) |
+
+### 多角色业务后台
+
+| 管理员数据总览 | 出租者房源管理 |
+|---|---|
+| ![管理员数据总览](docs/images/admin-dashboard.png) | ![出租者房源管理](docs/images/landlord-dashboard.png) |
+
+## RAG 工作流程
+
+```text
+用户询问平台办理规则
+        ↓
+LangGraph Agent 判断为知识问答
+        ↓
+调用 search_rental_knowledge
+        ↓
+轻量字符特征向量化
+        ↓
+sqlite-vec 检索 TopK 知识片段
+        ↓
+DeepSeek 依据检索内容组织回答
+```
+
+知识源位于 `agent-service/knowledge/`。向量索引由 `python -m app.rag.ingest` 在本地生成，索引文件不提交到 Git。
+
 ## 系统架构
 
 ```text
