@@ -130,6 +130,9 @@ async def agent_node(state: AgentState) -> dict:
     }
     pending_tool_calls: list[PendingToolCall] = []
     if message.tool_calls:
+        assistant_message["reasoning_content"] = (
+            getattr(message, "reasoning_content", None) or ""
+        )
         assistant_message["tool_calls"] = []
         for tool_call in message.tool_calls:
             call = {
@@ -301,6 +304,7 @@ async def stream_agent_events(state: AgentState) -> AsyncIterator[dict[str, Any]
             {
                 "role": "assistant",
                 "content": "",
+                "reasoning_content": "",
                 "tool_calls": [
                     {
                         "id": forced_tool_call["id"],
@@ -330,12 +334,16 @@ async def stream_agent_events(state: AgentState) -> AsyncIterator[dict[str, Any]
         )
         stream = await create_completion_stream(current_state["messages"], tools=tools)
         content_parts: list[str] = []
+        reasoning_parts: list[str] = []
         streamed_tool_calls: dict[int, dict[str, str]] = {}
 
         async for chunk in stream:
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
+            reasoning_content = getattr(delta, "reasoning_content", None)
+            if reasoning_content:
+                reasoning_parts.append(reasoning_content)
             if delta.content:
                 content_parts.append(delta.content)
                 yield {"event": "delta", "content": delta.content}
@@ -368,6 +376,7 @@ async def stream_agent_events(state: AgentState) -> AsyncIterator[dict[str, Any]
             "content": answer,
         }
         if pending_tool_calls:
+            assistant_message["reasoning_content"] = "".join(reasoning_parts)
             assistant_message["tool_calls"] = [
                 {
                     "id": call["id"],
