@@ -14,7 +14,11 @@
             <div class="assistant-title">AI 租房决策助手</div>
             <div class="assistant-subtitle">可以查询真实房源、查看详情并说明推荐理由</div>
           </div>
-          <el-tag type="success" effect="light">Agent + Tools</el-tag>
+          <div class="assistant-header-actions">
+            <el-button plain @click="startNewConversation">新对话</el-button>
+            <el-button plain @click="openHistory">历史对话</el-button>
+            <el-tag type="success" effect="light">Agent + Tools</el-tag>
+          </div>
         </div>
       </template>
 
@@ -76,6 +80,23 @@
         </div>
       </div>
     </el-card>
+
+    <el-drawer v-model="historyVisible" title="历史对话" size="360px">
+      <div v-loading="historyLoading" class="history-list">
+        <el-empty v-if="!historyLoading && !historyList.length" description="暂无历史对话" />
+        <button
+          v-for="item in historyList"
+          :key="item.conversationId"
+          type="button"
+          class="history-item"
+          :class="{ 'history-item-active': item.conversationId === conversationId }"
+          @click="restoreConversation(item.conversationId)"
+        >
+          <span class="history-title">{{ item.title }}</span>
+          <span class="history-time">{{ formatHistoryTime(item.lastMessageTime) }}</span>
+        </button>
+      </div>
+    </el-drawer>
   </DashboardShell>
 </template>
 
@@ -85,7 +106,11 @@ import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import DashboardShell from '../components/DashboardShell.vue'
-import { agentChatStreamApi } from '../api/agent'
+import {
+  agentChatStreamApi,
+  getAgentHistoryApi,
+  getAgentHistoryDetailApi,
+} from '../api/agent'
 import { logoutApi } from '../api/auth'
 import { useUserStore } from '../stores/user'
 
@@ -129,17 +154,21 @@ const loadStoredConversation = () => {
 }
 
 const storedConversation = loadStoredConversation()
-const conversationId =
+const conversationId = ref(
   storedConversation?.conversationId ||
   globalThis.crypto?.randomUUID?.() ||
-  `conversation-${Date.now()}`
+  `conversation-${Date.now()}`,
+)
 const messages = ref(storedConversation?.messages || defaultMessages)
+const historyVisible = ref(false)
+const historyLoading = ref(false)
+const historyList = ref([])
 
 const persistConversation = () => {
   sessionStorage.setItem(
     conversationStorageKey,
     JSON.stringify({
-      conversationId,
+      conversationId: conversationId.value,
       messages: messages.value.slice(-12),
       updatedAt: Date.now(),
     }),
@@ -159,6 +188,68 @@ const normalizeAssistantText = (content) => {
     .replace(/^\s*---\s*$/gm, '')
     .trim()
 }
+
+const createConversationId = () =>
+  globalThis.crypto?.randomUUID?.() || `conversation-${Date.now()}`
+
+const startNewConversation = () => {
+  if (sending.value) {
+    ElMessage.warning('请等待当前回答完成')
+    return
+  }
+  conversationId.value = createConversationId()
+  messages.value = defaultMessages.map((item) => ({ ...item }))
+  persistConversation()
+  historyVisible.value = false
+}
+
+const openHistory = async () => {
+  historyVisible.value = true
+  historyLoading.value = true
+  try {
+    historyList.value = (await getAgentHistoryApi()).data || []
+  } catch (error) {
+    ElMessage.error(error.message || '历史对话加载失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+const parseSources = (sourcesJson) => {
+  if (!sourcesJson) return []
+  try {
+    const sources = JSON.parse(sourcesJson)
+    return Array.isArray(sources) ? sources : []
+  } catch {
+    return []
+  }
+}
+
+const restoreConversation = async (targetConversationId) => {
+  if (sending.value) return
+  historyLoading.value = true
+  try {
+    const detail = (await getAgentHistoryDetailApi(targetConversationId)).data
+    conversationId.value = detail.conversationId
+    messages.value = (detail.messages || []).map((item) => ({
+      role: item.role,
+      content: item.content,
+      sources: parseSources(item.sourcesJson),
+    }))
+    if (!messages.value.length) {
+      messages.value = defaultMessages.map((item) => ({ ...item }))
+    }
+    persistConversation()
+    historyVisible.value = false
+    await scrollToBottom()
+  } catch (error) {
+    ElMessage.error(error.message || '历史对话恢复失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+const formatHistoryTime = (value) => String(value || '').replace('T', ' ').slice(0, 16)
 
 const sendMessage = async () => {
   const message = inputMessage.value.trim()
@@ -184,7 +275,7 @@ const sendMessage = async () => {
 
   try {
     await agentChatStreamApi(
-      { message, conversationId },
+      { message, conversationId: conversationId.value },
       {
         onDelta: (content) => {
           assistantMessage.content += content
@@ -251,6 +342,52 @@ const logout = async () => {
 .assistant-title {
   font-size: 20px;
   font-weight: 700;
+}
+
+.assistant-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.history-list {
+  min-height: 180px;
+}
+
+.history-item {
+  display: flex;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history-item + .history-item {
+  margin-top: 10px;
+}
+
+.history-item:hover,
+.history-item-active {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.history-title {
+  overflow: hidden;
+  color: #303133;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-time {
+  color: #909399;
+  font-size: 12px;
 }
 
 .assistant-subtitle {
@@ -401,6 +538,7 @@ const logout = async () => {
 
 @media (max-width: 767px) {
   .assistant-header,
+  .assistant-header-actions,
   .input-actions {
     align-items: flex-start;
     flex-direction: column;

@@ -1,6 +1,7 @@
 package com.rental.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -19,4 +20,7 @@ public class AppointmentAddDTO {
     private LocalDateTime appointmentTime;
 
     private String remark;
+
+    @Size(max = 100, message = "预约请求键长度不能超过100")
+    private String requestKey;
 }

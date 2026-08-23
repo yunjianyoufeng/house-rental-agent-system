@@ -23,6 +23,7 @@ class AgentState(TypedDict):
     tool_rounds: int
     conversation_id: str | None
     user_id: int | None
+    role_code: str | None
     authorization: str | None
     appointment_pending_at_start: bool
     knowledge_sources: list[KnowledgeSource]

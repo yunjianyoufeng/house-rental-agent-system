@@ -8,6 +8,20 @@ export function agentChatApi(data) {
   })
 }
 
+export function getAgentHistoryApi() {
+  return request({
+    url: '/tenant/agent-history',
+    method: 'get',
+  })
+}
+
+export function getAgentHistoryDetailApi(conversationId) {
+  return request({
+    url: `/tenant/agent-history/${encodeURIComponent(conversationId)}`,
+    method: 'get',
+  })
+}
+
 export async function agentChatStreamApi(data, handlers = {}) {
   const userInfo = JSON.parse(localStorage.getItem('userInfo') || 'null')
   const headers = {

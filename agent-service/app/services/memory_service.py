@@ -1,13 +1,23 @@
 import hashlib
 import json
+import logging
 from typing import Any
+from urllib.parse import quote
 
 import redis.asyncio as redis
 
 from app.core.config import get_settings
+from app.services.backend_client import (
+    BackendServiceError,
+    get_backend_data,
+    post_backend_data,
+    put_backend_data,
+)
+from app.services.llm_service import create_history_summary
 
 
 _redis_client: redis.Redis | None = None
+logger = logging.getLogger(__name__)
 
 
 def get_redis_client() -> redis.Redis:
@@ -41,9 +51,16 @@ def _has_identity(conversation_id: str | None, user_id: int | None) -> bool:
 async def load_conversation_messages(
     conversation_id: str | None,
     user_id: int | None,
+    authorization: str | None = None,
 ) -> list[dict[str, str]]:
     if not _has_identity(conversation_id, user_id):
         return []
+    if authorization:
+        try:
+            return await _load_persistent_context(conversation_id, authorization)
+        except BackendServiceError as exc:
+            logger.warning("MySQL对话上下文读取失败，降级使用Redis：%s", exc)
+
     settings = get_settings()
     key = _memory_key("conversation", conversation_id, user_id)
     values = await get_redis_client().lrange(key, 0, -1)
@@ -69,6 +86,8 @@ async def save_conversation_exchange(
     user_id: int | None,
     user_message: str,
     assistant_message: str,
+    authorization: str | None = None,
+    sources: list[dict[str, Any]] | None = None,
 ) -> None:
     if not _has_identity(conversation_id, user_id):
         return
@@ -85,6 +104,85 @@ async def save_conversation_exchange(
         pipeline.ltrim(key, -settings.conversation_max_messages, -1)
         pipeline.expire(key, settings.conversation_ttl_seconds)
         await pipeline.execute()
+
+    if authorization:
+        try:
+            await post_backend_data(
+                "/tenant/agent-history/exchanges",
+                {
+                    "conversationId": conversation_id,
+                    "userMessage": user_message,
+                    "assistantMessage": assistant_message,
+                    "sourcesJson": json.dumps(sources or [], ensure_ascii=False),
+                },
+                headers={"Authorization": authorization},
+            )
+        except BackendServiceError as exc:
+            logger.warning("MySQL对话历史保存失败，当前仅保留Redis副本：%s", exc)
+
+
+async def _load_persistent_context(
+    conversation_id: str,
+    authorization: str,
+) -> list[dict[str, str]]:
+    settings = get_settings()
+    encoded_id = quote(conversation_id, safe="")
+    data = await get_backend_data(
+        f"/tenant/agent-history/{encoded_id}/context",
+        headers={"Authorization": authorization},
+    )
+    if not isinstance(data, dict):
+        return []
+
+    summary = str(data.get("summary") or "").strip()
+    raw_messages = data.get("messages")
+    messages: list[dict[str, Any]] = []
+    if isinstance(raw_messages, list):
+        for item in raw_messages:
+            if (
+                isinstance(item, dict)
+                and item.get("role") in {"user", "assistant"}
+                and isinstance(item.get("content"), str)
+                and isinstance(item.get("id"), int)
+            ):
+                messages.append(item)
+
+    recent_count = max(2, min(
+        settings.conversation_recent_messages,
+        settings.conversation_max_messages,
+    ))
+    if len(messages) > settings.conversation_max_messages:
+        compact_messages = messages[:-recent_count]
+        try:
+            summary = await create_history_summary(
+                summary or None,
+                [
+                    {"role": item["role"], "content": item["content"]}
+                    for item in compact_messages
+                ],
+            )
+            through_message_id = compact_messages[-1]["id"]
+            await put_backend_data(
+                f"/tenant/agent-history/{encoded_id}/summary",
+                {
+                    "summary": summary,
+                    "throughMessageId": through_message_id,
+                },
+                headers={"Authorization": authorization},
+            )
+            messages = messages[-recent_count:]
+        except Exception as exc:
+            logger.warning("对话摘要生成失败，降级使用最近消息：%s", exc)
+            messages = messages[-settings.conversation_max_messages :]
+
+    context: list[dict[str, str]] = []
+    if summary:
+        context.append({"role": "system", "content": f"此前对话摘要：{summary}"})
+    context.extend(
+        {"role": item["role"], "content": item["content"]}
+        for item in messages[-settings.conversation_max_messages :]
+    )
+    return context
 
 
 async def get_json_state(

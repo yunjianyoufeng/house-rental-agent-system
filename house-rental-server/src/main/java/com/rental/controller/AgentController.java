@@ -32,6 +32,7 @@ public class AgentController {
             HttpServletRequest request) {
         RequestUserUtil.checkTenantRole(request);
         dto.setUserId(RequestUserUtil.getCurrentUserId(request));
+        dto.setRoleCode(RequestUserUtil.getCurrentRole(request));
         return Result.success(agentClient.chat(dto, request.getHeader("Authorization")));
     }
 
@@ -41,6 +42,7 @@ public class AgentController {
             HttpServletRequest request) {
         RequestUserUtil.checkTenantRole(request);
         dto.setUserId(RequestUserUtil.getCurrentUserId(request));
+        dto.setRoleCode(RequestUserUtil.getCurrentRole(request));
         String authorization = request.getHeader("Authorization");
         StreamingResponseBody responseBody = outputStream ->
                 agentClient.stream(dto, authorization, outputStream);

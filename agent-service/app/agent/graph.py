@@ -33,16 +33,23 @@ from app.tools.preference_tools import (
     execute_preference_tool,
     load_rental_preference,
 )
+from app.tools.personal_tools import (
+    PERSONAL_TOOL_DEFINITIONS,
+    execute_personal_tool,
+)
 
 
 MAX_TOOL_ROUNDS = 3
-ALL_TOOL_DEFINITIONS = (
+BASE_TOOL_DEFINITIONS = (
     HOUSE_TOOL_DEFINITIONS
     + DECISION_TOOL_DEFINITIONS
     + APPOINTMENT_TOOL_DEFINITIONS
     + PREFERENCE_TOOL_DEFINITIONS
     + KNOWLEDGE_TOOL_DEFINITIONS
 )
+PERSONAL_TOOL_NAMES = {
+    tool["function"]["name"] for tool in PERSONAL_TOOL_DEFINITIONS
+}
 HOUSE_TOOL_NAMES = {
     tool["function"]["name"] for tool in HOUSE_TOOL_DEFINITIONS
 }
@@ -81,8 +88,19 @@ KNOWLEDGE_QUESTION_KEYWORDS = (
 )
 
 
+def available_tool_definitions(role_code: str | None) -> list[dict[str, Any]]:
+    tools = list(BASE_TOOL_DEFINITIONS)
+    if role_code == "TENANT":
+        tools.extend(PERSONAL_TOOL_DEFINITIONS)
+    return tools
+
+
 async def agent_node(state: AgentState) -> dict:
-    tools = ALL_TOOL_DEFINITIONS if state["tool_rounds"] < MAX_TOOL_ROUNDS else None
+    tools = (
+        available_tool_definitions(state["role_code"])
+        if state["tool_rounds"] < MAX_TOOL_ROUNDS
+        else None
+    )
     response = await create_completion(state["messages"], tools=tools)
     message = response.choices[0].message
 
@@ -151,6 +169,12 @@ async def tool_node(state: AgentState) -> dict:
                 knowledge_sources = merge_knowledge_sources(
                     knowledge_sources,
                     result.get("results", []),
+                )
+            elif tool_call["name"] in PERSONAL_TOOL_NAMES:
+                result = await execute_personal_tool(
+                    tool_call["name"],
+                    state["authorization"],
+                    state["role_code"],
                 )
             else:
                 result = await execute_decision_tool(tool_call["name"], arguments)
@@ -275,7 +299,7 @@ async def stream_agent_events(state: AgentState) -> AsyncIterator[dict[str, Any]
 
     while True:
         tools = (
-            ALL_TOOL_DEFINITIONS
+            available_tool_definitions(current_state["role_code"])
             if current_state["tool_rounds"] < MAX_TOOL_ROUNDS
             else None
         )
@@ -399,11 +423,12 @@ async def initial_agent_state(
     message: str,
     conversation_id: str | None = None,
     user_id: int | None = None,
+    role_code: str | None = None,
     authorization: str | None = None,
 ) -> AgentState:
     pending_appointment, conversation_messages, rental_preference = await asyncio.gather(
         get_pending_appointment(conversation_id, user_id),
-        load_conversation_messages(conversation_id, user_id),
+        load_conversation_messages(conversation_id, user_id, authorization),
         load_rental_preference(authorization),
     )
     return {
@@ -412,12 +437,14 @@ async def initial_agent_state(
             pending_appointment,
             conversation_messages,
             rental_preference,
+            role_code,
         ),
         "answer": "",
         "pending_tool_calls": [],
         "tool_rounds": 0,
         "conversation_id": conversation_id,
         "user_id": user_id,
+        "role_code": role_code,
         "authorization": authorization,
         "appointment_pending_at_start": pending_appointment is not None,
         "knowledge_sources": [],

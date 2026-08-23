@@ -29,6 +29,7 @@ class StreamingAgentTest(unittest.IsolatedAsyncioTestCase):
             "tool_rounds": 0,
             "conversation_id": "conversation-1",
             "user_id": 8,
+            "role_code": "TENANT",
             "authorization": None,
             "appointment_pending_at_start": False,
             "knowledge_sources": [],
@@ -59,6 +60,7 @@ class StreamingAgentTest(unittest.IsolatedAsyncioTestCase):
             "tool_rounds": 0,
             "conversation_id": "conversation-2",
             "user_id": 8,
+            "role_code": "TENANT",
             "authorization": None,
             "appointment_pending_at_start": False,
             "knowledge_sources": [],
@@ -96,6 +98,11 @@ class StreamingAgentTest(unittest.IsolatedAsyncioTestCase):
 
     def test_does_not_treat_appointment_action_as_knowledge_question(self):
         messages = [{"role": "user", "content": "帮我预约19号房明天上午看房"}]
+
+        self.assertFalse(should_prefetch_rental_knowledge(messages))
+
+    def test_does_not_prefetch_process_knowledge_for_personal_contract_list(self):
+        messages = [{"role": "user", "content": "我的合同有哪些"}]
 
         self.assertFalse(should_prefetch_rental_knowledge(messages))
 

@@ -18,4 +18,9 @@ public class AgentChatRequestDTO {
      * 由后端根据当前登录状态写入，不信任前端传值。
      */
     private Long userId;
+
+    /**
+     * 由后端根据当前登录状态写入，不信任前端传值。
+     */
+    private String roleCode;
 }

@@ -9,6 +9,8 @@ from redis.exceptions import RedisError
 from app.agent.graph import agent_graph, initial_agent_state, stream_agent_events
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.llm_service import DeepSeekConfigurationError
+from app.services.backend_client import BackendServiceError
+from app.services.identity_service import resolve_authenticated_identity
 from app.services.memory_service import save_conversation_exchange
 
 
@@ -26,18 +28,22 @@ async def chat(
     authorization: str | None = Header(default=None),
 ) -> ChatResponse:
     try:
+        user_id, role_code = await resolve_authenticated_identity(authorization)
         state = await initial_agent_state(
             request.message,
             request.conversation_id,
-            request.user_id,
+            user_id,
+            role_code,
             authorization,
         )
         result = await agent_graph.ainvoke(state)
         await save_conversation_exchange(
             request.conversation_id,
-            request.user_id,
+            user_id,
             request.message,
             result["answer"],
+            authorization,
+            result.get("knowledge_sources", []),
         )
     except DeepSeekConfigurationError as exc:
         raise HTTPException(
@@ -54,6 +60,11 @@ async def chat(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Redis 会话服务暂不可用，请确认 Redis 已启动。",
         ) from exc
+    except (BackendServiceError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+        ) from exc
 
     return ChatResponse(
         conversation_id=request.conversation_id,
@@ -69,10 +80,12 @@ async def chat_stream(
 ) -> StreamingResponse:
     async def generate_events() -> AsyncIterator[str]:
         try:
+            user_id, role_code = await resolve_authenticated_identity(authorization)
             state = await initial_agent_state(
                 request.message,
                 request.conversation_id,
-                request.user_id,
+                user_id,
+                role_code,
                 authorization,
             )
             async for item in stream_agent_events(state):
@@ -80,9 +93,11 @@ async def chat_stream(
                 if event == "done":
                     await save_conversation_exchange(
                         request.conversation_id,
-                        request.user_id,
+                        user_id,
                         request.message,
                         item["answer"],
+                        authorization,
+                        item.get("sources", []),
                     )
                 yield encode_sse_event(event, item)
         except DeepSeekConfigurationError as exc:
@@ -97,6 +112,8 @@ async def chat_stream(
                 "error",
                 {"message": "Redis 会话服务暂不可用，请确认 Redis 已启动。"},
             )
+        except (BackendServiceError, ValueError) as exc:
+            yield encode_sse_event("error", {"message": str(exc)})
 
     return StreamingResponse(
         generate_events(),

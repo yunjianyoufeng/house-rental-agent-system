@@ -27,6 +27,8 @@ public class Appointment {
 
     private String remark;
 
+    private String requestKey;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

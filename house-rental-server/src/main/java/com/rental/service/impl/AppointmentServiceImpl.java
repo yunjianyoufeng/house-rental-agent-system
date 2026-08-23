@@ -11,10 +11,12 @@ import com.rental.mapper.HouseMapper;
 import com.rental.mapper.SysUserMapper;
 import com.rental.service.AppointmentService;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class AppointmentServiceImpl implements AppointmentService {
@@ -33,6 +35,15 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public void add(AppointmentAddDTO dto) {
+        String requestKey = StringUtils.hasText(dto.getRequestKey())
+                ? dto.getRequestKey().trim() : null;
+        if (requestKey != null) {
+            Appointment existing = findByRequestKey(dto.getTenantId(), requestKey);
+            if (existing != null) {
+                validateIdempotentRequest(existing, dto);
+                return;
+            }
+        }
         if (dto.getAppointmentTime().isBefore(LocalDateTime.now())) {
             throw new BusinessException("预约时间必须晚于当前时间");
         }
@@ -62,12 +73,48 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setLandlordId(house.getPublisherId());
         appointment.setAppointmentTime(dto.getAppointmentTime());
         appointment.setRemark(dto.getRemark());
+        appointment.setRequestKey(requestKey);
         appointment.setStatus(0);
 
-        int rows = appointmentMapper.insert(appointment);
+        int rows;
+        try {
+            rows = appointmentMapper.insert(appointment);
+        } catch (DuplicateKeyException exc) {
+            Appointment existing = requestKey == null
+                    ? null : findByRequestKey(dto.getTenantId(), requestKey);
+            if (existing != null) {
+                validateIdempotentRequest(existing, dto);
+                return;
+            }
+            throw exc;
+        }
         if (rows <= 0) {
             throw new BusinessException("预约失败");
         }
+    }
+
+    private Appointment findByRequestKey(Long tenantId, String requestKey) {
+        return appointmentMapper.selectOne(
+                new LambdaQueryWrapper<Appointment>()
+                        .eq(Appointment::getTenantId, tenantId)
+                        .eq(Appointment::getRequestKey, requestKey)
+                        .last("LIMIT 1")
+        );
+    }
+
+    private void validateIdempotentRequest(
+            Appointment existing,
+            AppointmentAddDTO dto) {
+        boolean sameRequest = Objects.equals(existing.getHouseId(), dto.getHouseId())
+                && Objects.equals(existing.getAppointmentTime(), dto.getAppointmentTime())
+                && Objects.equals(normalizeRemark(existing.getRemark()), normalizeRemark(dto.getRemark()));
+        if (!sameRequest) {
+            throw new BusinessException("预约请求键已被其他请求使用");
+        }
+    }
+
+    private String normalizeRemark(String remark) {
+        return StringUtils.hasText(remark) ? remark.trim() : "";
     }
 
     @Override

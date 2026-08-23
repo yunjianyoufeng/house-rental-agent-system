@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:6379/0"
     conversation_ttl_seconds: int = 3600
     conversation_max_messages: int = 12
+    conversation_recent_messages: int = 8
     appointment_pending_ttl_seconds: int = 900
     rag_database_path: str = "data/rag/knowledge.db"
     rag_knowledge_dir: str = "knowledge"

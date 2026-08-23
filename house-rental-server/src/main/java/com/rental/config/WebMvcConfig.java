@@ -29,6 +29,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/tenant/**",
                         "/landlord/**",
                         "/agent/**",
+                        "/auth/me",
                         "/auth/logout",
                         "/order/**",
                         "/contract/**"

@@ -4,8 +4,10 @@ import com.rental.common.Result;
 import com.rental.dto.LoginDTO;
 import com.rental.dto.RegisterDTO;
 import com.rental.entity.SysUser;
+import com.rental.common.RequestUserUtil;
 import com.rental.service.TokenService;
 import com.rental.service.UserService;
+import com.rental.vo.AuthenticatedUserVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -48,6 +50,16 @@ public class AuthController {
         }
 
         return Result.success("退出登录成功");
+    }
+
+    @GetMapping("/me")
+    public Result<AuthenticatedUserVO> me(HttpServletRequest request) {
+        SysUser user = RequestUserUtil.getCurrentUser(request);
+        return Result.success(new AuthenticatedUserVO(
+                user.getId(),
+                user.getRoleCode(),
+                user.getStatus()
+        ));
     }
 
     private String extractToken(String authorization) {

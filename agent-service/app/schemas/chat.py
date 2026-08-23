@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -7,6 +9,10 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     conversation_id: str | None = Field(default=None, alias="conversationId")
     user_id: int | None = Field(default=None, alias="userId", gt=0)
+    role_code: Literal["TENANT", "LANDLORD", "ADMIN"] | None = Field(
+        default=None,
+        alias="roleCode",
+    )
 
     @field_validator("message")
     @classmethod

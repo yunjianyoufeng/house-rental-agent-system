@@ -1,4 +1,5 @@
 from datetime import datetime
+import hashlib
 from typing import Any
 
 from app.core.config import get_settings
@@ -90,6 +91,19 @@ def _parse_appointment_time(value: Any) -> datetime:
     return appointment_time
 
 
+def _build_request_key(
+    user_id: int,
+    conversation_id: str,
+    house_id: Any,
+    appointment_time: str,
+    remark: str,
+) -> str:
+    request_source = (
+        f"{user_id}:{conversation_id}:{house_id}:{appointment_time}:{remark}"
+    )
+    return hashlib.sha256(request_source.encode("utf-8")).hexdigest()
+
+
 async def prepare_appointment(
     arguments: dict[str, Any],
     conversation_id: str | None,
@@ -101,14 +115,22 @@ async def prepare_appointment(
     appointment_time = _parse_appointment_time(arguments.get("appointment_time"))
     house = await get_house_detail({"house_id": arguments["house_id"]})
     remark = str(arguments.get("remark") or "").strip()
+    normalized_time = appointment_time.isoformat(timespec="seconds")
 
     pending = {
         "houseId": house.get("id"),
         "houseTitle": house.get("title"),
         "address": house.get("address"),
         "rentPrice": house.get("rentPrice"),
-        "appointmentTime": appointment_time.isoformat(timespec="seconds"),
+        "appointmentTime": normalized_time,
         "remark": remark,
+        "requestKey": _build_request_key(
+            user_id,
+            conversation_id,
+            house.get("id"),
+            normalized_time,
+            remark,
+        ),
     }
     await set_json_state(
         PENDING_NAMESPACE,
@@ -143,6 +165,13 @@ async def confirm_appointment(
         raise ValueError("登录状态已失效，无法创建预约。")
 
     appointment_time = datetime.fromisoformat(pending["appointmentTime"])
+    request_key = pending.get("requestKey") or _build_request_key(
+        user_id,
+        conversation_id,
+        pending["houseId"],
+        pending["appointmentTime"],
+        str(pending.get("remark") or "").strip(),
+    )
     result = await post_backend_data(
         "/tenant/appointment/add",
         {
@@ -151,6 +180,7 @@ async def confirm_appointment(
                 timespec="seconds"
             ),
             "remark": pending["remark"],
+            "requestKey": request_key,
         },
         headers={"Authorization": authorization},
     )
