@@ -22,3 +22,11 @@ class ChatResponse(BaseModel):
 
     answer: str
     conversation_id: str | None = Field(default=None, alias="conversationId")
+    sources: list["KnowledgeSource"] = Field(default_factory=list)
+
+
+class KnowledgeSource(BaseModel):
+    source: str
+    title: str
+    section: str
+    relevance: float = Field(ge=0, le=1)

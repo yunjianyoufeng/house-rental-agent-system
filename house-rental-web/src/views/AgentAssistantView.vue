@@ -26,16 +26,37 @@
           :class="`message-row-${item.role}`"
         >
           <div class="message-role">{{ item.role === 'user' ? '我' : 'AI' }}</div>
-          <div class="message-bubble">{{ item.content }}</div>
-        </div>
-
-        <div v-if="sending" class="message-row message-row-assistant">
-          <div class="message-role">AI</div>
-          <div class="message-bubble message-loading">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            正在分析需求并查询房源…
+          <div class="message-content">
+            <div class="message-bubble">
+              <span v-if="item.content">{{ item.content }}</span>
+              <span v-else-if="item.streaming" class="message-loading">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                {{ item.status || '正在分析需求…' }}
+              </span>
+              <span v-if="item.streaming && item.content" class="streaming-cursor"></span>
+            </div>
+            <div
+              v-if="item.role === 'assistant' && item.sources?.length"
+              class="knowledge-sources"
+            >
+              <div class="knowledge-sources-title">知识来源</div>
+              <div
+                v-for="source in item.sources"
+                :key="`${source.source}-${source.section}`"
+                class="knowledge-source-item"
+              >
+                <el-tag size="small" type="success" effect="plain">RAG</el-tag>
+                <div>
+                  <div class="knowledge-source-name">{{ source.title }}</div>
+                  <div class="knowledge-source-meta">
+                    {{ source.section || source.source }}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
       </div>
 
       <div class="assistant-input">
@@ -64,7 +85,7 @@ import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import DashboardShell from '../components/DashboardShell.vue'
-import { agentChatApi } from '../api/agent'
+import { agentChatStreamApi } from '../api/agent'
 import { logoutApi } from '../api/auth'
 import { useUserStore } from '../stores/user'
 
@@ -148,24 +169,48 @@ const sendMessage = async () => {
   if (sending.value) return
 
   messages.value.push({ role: 'user', content: message })
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    sources: [],
+    streaming: true,
+    status: '正在分析需求…',
+  })
+  const assistantMessage = messages.value[messages.value.length - 1]
   persistConversation()
   inputMessage.value = ''
   sending.value = true
   await scrollToBottom()
 
   try {
-    const response = await agentChatApi({
-      message,
-      conversationId,
-    })
-    messages.value.push({
-      role: 'assistant',
-      content: normalizeAssistantText(
-        response.data?.answer || '助手暂未返回有效内容，请稍后重试。',
-      ),
-    })
+    await agentChatStreamApi(
+      { message, conversationId },
+      {
+        onDelta: (content) => {
+          assistantMessage.content += content
+          assistantMessage.status = ''
+          scrollToBottom()
+        },
+        onStatus: () => {
+          assistantMessage.status = '正在调用平台工具…'
+        },
+        onDone: (payload) => {
+          assistantMessage.content = normalizeAssistantText(
+            payload.answer || assistantMessage.content,
+          )
+          assistantMessage.sources = Array.isArray(payload.sources) ? payload.sources : []
+        },
+      },
+    )
     persistConversation()
+  } catch (error) {
+    if (!assistantMessage.content) {
+      assistantMessage.content = error.message || '助手暂未返回有效内容，请稍后重试。'
+    }
+    ElMessage.error(error.message || '智能租房助手服务异常')
   } finally {
+    assistantMessage.streaming = false
+    assistantMessage.status = ''
     sending.value = false
     await scrollToBottom()
   }
@@ -251,7 +296,6 @@ const logout = async () => {
 }
 
 .message-bubble {
-  max-width: min(76%, 760px);
   padding: 13px 16px;
   border-radius: 6px 18px 18px;
   background: #f2f6fc;
@@ -259,6 +303,53 @@ const logout = async () => {
   line-height: 1.75;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message-content {
+  max-width: min(76%, 760px);
+}
+
+.message-row-user .message-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.knowledge-sources {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid #d9ecff;
+  border-radius: 12px;
+  background: #f5faff;
+}
+
+.knowledge-sources-title {
+  margin-bottom: 9px;
+  color: #606266;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.knowledge-source-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.knowledge-source-item + .knowledge-source-item {
+  margin-top: 9px;
+}
+
+.knowledge-source-name {
+  color: #303133;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.knowledge-source-meta {
+  margin-top: 2px;
+  color: #909399;
+  font-size: 12px;
 }
 
 .message-row-user .message-bubble {
@@ -272,6 +363,22 @@ const logout = async () => {
   align-items: center;
   gap: 8px;
   color: #606266;
+}
+
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 3px;
+  vertical-align: -2px;
+  background: #409eff;
+  animation: cursor-blink 0.8s steps(1) infinite;
+}
+
+@keyframes cursor-blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 .assistant-input {
@@ -304,7 +411,7 @@ const logout = async () => {
     min-height: 320px;
   }
 
-  .message-bubble {
+  .message-content {
     max-width: 82%;
   }
 

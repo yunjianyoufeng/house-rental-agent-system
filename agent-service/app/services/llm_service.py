@@ -91,6 +91,32 @@ async def create_completion(
     return await client.chat.completions.create(**request_options)
 
 
+async def create_completion_stream(
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None = None,
+):
+    settings = get_settings()
+    if settings.deepseek_api_key is None:
+        raise DeepSeekConfigurationError(
+            "尚未配置 DEEPSEEK_API_KEY，当前不能调用模型服务。"
+        )
+
+    client = AsyncOpenAI(
+        api_key=settings.deepseek_api_key.get_secret_value(),
+        base_url=settings.deepseek_base_url,
+    )
+    request_options: dict[str, Any] = {
+        "model": settings.deepseek_model,
+        "messages": messages,
+        "temperature": 0.2,
+        "stream": True,
+    }
+    if tools:
+        request_options["tools"] = tools
+        request_options["tool_choice"] = "auto"
+    return await client.chat.completions.create(**request_options)
+
+
 async def generate_answer(message: str) -> str:
     response = await create_completion(initial_messages(message))
     answer = response.choices[0].message.content

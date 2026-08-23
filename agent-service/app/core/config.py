@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     rag_top_k: int = 3
     agent_host: str = "127.0.0.1"
     agent_port: int = 8001
+    agent_tool_log_path: str = "logs/tool-calls.jsonl"
+    agent_tool_log_max_bytes: int = 2 * 1024 * 1024
+    agent_tool_log_backup_count: int = 3
 
 
 @lru_cache

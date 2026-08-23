@@ -9,6 +9,8 @@
 - Redis 短期对话记忆和待确认状态
 - MySQL 长期租房偏好（经 Spring Boot 接口访问）
 - `sqlite-vec` 轻量级 RAG 平台知识问答
+- Agent 工具调用结构化滚动日志
+- DeepSeek、Spring Boot、Vue 端到端 SSE 流式回答
 
 ## 配置
 
@@ -36,6 +38,12 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 
 当前向量由稳定的中文字符特征生成，不依赖本地神经网络模型。这是真实的 `sqlite-vec` 向量检索，但语义能力弱于大型 Embedding 模型，优点是内存和磁盘占用很低。
 
+## Agent 调用日志
+
+工具调用日志默认写入 `logs/tool-calls.jsonl`，每行是一条 JSON 记录，包含工具名、执行状态、耗时、会话、用户标识、脱敏参数和精简结果摘要。
+
+单个文件默认最多 2 MB，并保留 3 个备份，避免长期运行占用过多磁盘。授权信息、令牌、密码和 API Key 会被自动遮盖。日志目录不会提交到 Git。
+
 ## 运行依赖
 
 - Spring Boot：`http://127.0.0.1:8080`
@@ -48,4 +56,5 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 .venv\Scripts\python.exe -m pip check
 .venv\Scripts\python.exe -m app.rag.ingest
 .venv\Scripts\python.exe -c "import app.agent.graph; print('Agent graph import OK')"
+.venv\Scripts\python.exe -B -m unittest discover -s tests -v
 ```

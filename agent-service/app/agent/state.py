@@ -7,6 +7,13 @@ class PendingToolCall(TypedDict):
     arguments: str
 
 
+class KnowledgeSource(TypedDict):
+    source: str
+    title: str
+    section: str
+    relevance: float
+
+
 class AgentState(TypedDict):
     """保存一次 Agent 执行过程中的消息和待调用工具。"""
 
@@ -18,3 +25,4 @@ class AgentState(TypedDict):
     user_id: int | None
     authorization: str | None
     appointment_pending_at_start: bool
+    knowledge_sources: list[KnowledgeSource]
