@@ -45,7 +45,7 @@ class AppointmentServiceIdempotencyTest {
 
         service.add(dto);
 
-        verify(appointmentMapper, never()).insert(any());
+        verify(appointmentMapper, never()).insert(any(Appointment.class));
         verify(houseMapper, never()).selectById(any());
     }
 }

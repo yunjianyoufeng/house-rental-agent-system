@@ -1,6 +1,7 @@
 package com.rental.service.impl;
 
 import com.rental.dto.AgentConversationExchangeDTO;
+import com.rental.entity.AgentConversation;
 import com.rental.entity.AgentMessage;
 import com.rental.mapper.AgentConversationMapper;
 import com.rental.mapper.AgentMessageMapper;
@@ -33,9 +34,9 @@ class AgentConversationServiceImplTest {
     @Test
     void saveExchangeCreatesConversationAndTwoRoleMessages() {
         when(conversationMapper.selectOne(any())).thenReturn(null);
-        when(conversationMapper.insert(any())).thenReturn(1);
-        when(conversationMapper.updateById(any())).thenReturn(1);
-        when(messageMapper.insert(any())).thenReturn(1);
+        when(conversationMapper.insert(any(AgentConversation.class))).thenReturn(1);
+        when(conversationMapper.updateById(any(AgentConversation.class))).thenReturn(1);
+        when(messageMapper.insert(any(AgentMessage.class))).thenReturn(1);
 
         AgentConversationExchangeDTO dto = new AgentConversationExchangeDTO();
         dto.setConversationId("conversation-1");
@@ -51,7 +52,7 @@ class AgentConversationServiceImplTest {
         assertEquals("user", messages.get(0).getRole());
         assertEquals("assistant", messages.get(1).getRole());
         assertEquals(8L, messages.get(0).getUserId());
-        verify(conversationMapper).insert(any());
+        verify(conversationMapper).insert(any(AgentConversation.class));
     }
 
     @Test
