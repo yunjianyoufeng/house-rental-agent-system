@@ -435,7 +435,7 @@
             <el-table-column label="合同附件" min-width="190">
               <template #default="scope">
                 <div class="table-inline-actions">
-                  <el-button v-if="scope.row.contractUrl" type="primary" link @click="openFile(scope.row.contractUrl)">查看附件</el-button>
+                  <el-button v-if="scope.row.contractUrl" type="primary" link @click="openFile(scope.row.id)">查看附件</el-button>
                   <el-upload action="#" :auto-upload="false" :show-file-list="false" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" @change="(uploadFile) => handleContractUpload(uploadFile, scope.row)">
                     <el-button type="success" link>上传附件</el-button>
                   </el-upload>
@@ -610,7 +610,7 @@ import {
   rejectRentalApplicationApi,
 } from '../api/application'
 import { getLandlordRepairListApi, processRepairApi } from '../api/repair'
-import { finishContractLandlordApi, getLandlordContractListApi, updateLandlordContractFileApi } from '../api/contract'
+import { downloadContractFileApi, finishContractLandlordApi, getLandlordContractListApi, updateLandlordContractFileApi } from '../api/contract'
 import { getLandlordOrderListApi } from '../api/order'
 import { uploadHouseImageApi, uploadLandlordContractFileApi } from '../api/upload'
 import {
@@ -805,7 +805,7 @@ const normalizeFileUrl = (url) => {
     try {
       const urlObj = new URL(text)
       text = urlObj.pathname
-    } catch (error) {
+    } catch {
       console.warn('图片地址解析失败，保留原始地址：', text)
     }
   }
@@ -954,9 +954,20 @@ const handleContractUpload = async (uploadFile, row) => {
   }
 }
 
-const openFile = (url) => {
-  if (!url) return
-  window.open(normalizeFileUrl(url), '_blank')
+const openFile = async (contractId) => {
+  if (!contractId) return
+  try {
+    const blob = await downloadContractFileApi(contractId)
+    const fileUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = fileUrl
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60000)
+  } catch (error) {
+    console.log('合同附件打开失败：', error)
+  }
 }
 
 const removeHouseImage = (index) => {

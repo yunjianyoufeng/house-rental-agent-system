@@ -29,6 +29,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/tenant/**",
                         "/landlord/**",
                         "/agent/**",
+                        "/recommend/**",
                         "/auth/me",
                         "/auth/logout",
                         "/order/**",
@@ -43,7 +44,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         Path uploadPath = Paths.get(uploadBaseDir).toAbsolutePath().normalize();
-        registry.addResourceHandler("/uploads/**")
-                .addResourceLocations(uploadPath.toUri().toString());
+        registry.addResourceHandler("/uploads/images/**")
+                .addResourceLocations(uploadPath.resolve("images").toUri().toString());
     }
 }

@@ -18,9 +18,14 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 public class LeaseContractServiceImpl implements LeaseContractService {
+
+    private static final Pattern CONTRACT_URL_PATTERN = Pattern.compile(
+            "^/uploads/contracts/\\d{8}/[a-fA-F0-9]{32}\\.(pdf|doc|docx|jpg|jpeg|png)$"
+    );
 
     private final LeaseContractMapper leaseContractMapper;
     private final RentalApplicationMapper rentalApplicationMapper;
@@ -71,7 +76,9 @@ public class LeaseContractServiceImpl implements LeaseContractService {
         contract.setEndDate(dto.getEndDate());
         contract.setMonthlyRent(dto.getMonthlyRent());
         contract.setDeposit(dto.getDeposit());
-        contract.setContractUrl(dto.getContractUrl());
+        contract.setContractUrl(StringUtils.hasText(dto.getContractUrl())
+                ? validateContractUrl(dto.getContractUrl())
+                : null);
         contract.setStatus(0);
 
         int rows = leaseContractMapper.insert(contract);
@@ -126,7 +133,7 @@ public class LeaseContractServiceImpl implements LeaseContractService {
         if (!admin && !operatorId.equals(contract.getLandlordId())) {
             throw new BusinessException("只能上传自己合同的附件");
         }
-        contract.setContractUrl(contractUrl);
+        contract.setContractUrl(validateContractUrl(contractUrl));
         if (leaseContractMapper.updateById(contract) <= 0) {
             throw new BusinessException("更新合同附件失败");
         }
@@ -162,6 +169,14 @@ public class LeaseContractServiceImpl implements LeaseContractService {
         for (LeaseContract item : list) {
             refreshContract(item);
         }
+    }
+
+    private String validateContractUrl(String contractUrl) {
+        String normalized = contractUrl == null ? "" : contractUrl.trim();
+        if (!CONTRACT_URL_PATTERN.matcher(normalized).matches()) {
+            throw new BusinessException("合同附件地址非法，请先通过合同上传接口上传文件");
+        }
+        return normalized;
     }
 
     private void refreshContract(LeaseContract contract) {

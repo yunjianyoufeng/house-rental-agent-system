@@ -28,6 +28,26 @@ request.interceptors.request.use(
 
 request.interceptors.response.use(
   (response) => {
+    if (response.config.responseType === 'blob') {
+      const contentType = response.headers['content-type'] || response.data?.type || ''
+      if (contentType.includes('application/json')) {
+        return response.data.text().then((text) => {
+          let res
+          try {
+            res = JSON.parse(text)
+          } catch {
+            res = { message: '合同附件响应解析失败' }
+          }
+          if (res.code === 401) {
+            clearLoginAndRedirect()
+          }
+          ElMessage.error(res.message || '合同附件下载失败')
+          return Promise.reject(res)
+        })
+      }
+      return response.data
+    }
+
     const res = response.data
 
     if (res.code === 200) {

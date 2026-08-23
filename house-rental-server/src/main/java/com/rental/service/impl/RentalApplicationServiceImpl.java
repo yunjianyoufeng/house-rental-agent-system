@@ -1,6 +1,7 @@
 package com.rental.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.rental.dto.RentalApplicationAddDTO;
 import com.rental.entity.House;
 import com.rental.entity.LeaseContract;
@@ -127,6 +128,17 @@ public class RentalApplicationServiceImpl implements RentalApplicationService {
             throw new BusinessException("该房源当前不可审批，可能已被锁定或出租");
         }
 
+        int claimedRows = houseMapper.update(
+                null,
+                new LambdaUpdateWrapper<House>()
+                        .eq(House::getId, house.getId())
+                        .eq(House::getStatus, 1)
+                        .set(House::getStatus, 2)
+        );
+        if (claimedRows <= 0) {
+            throw new BusinessException("该房源已被其他申请锁定，请刷新后重试");
+        }
+
         LambdaQueryWrapper<RentalApplication> approvedWrapper = new LambdaQueryWrapper<>();
         approvedWrapper.eq(RentalApplication::getHouseId, application.getHouseId())
                 .eq(RentalApplication::getStatus, 1)
@@ -168,9 +180,6 @@ public class RentalApplicationServiceImpl implements RentalApplicationService {
         if (orderRows <= 0) {
             throw new BusinessException("自动生成订单失败");
         }
-
-        house.setStatus(2);
-        houseMapper.updateById(house);
 
         LambdaQueryWrapper<RentalApplication> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(RentalApplication::getHouseId, application.getHouseId())

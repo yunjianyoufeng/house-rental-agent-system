@@ -1,13 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
-import LoginView from '../views/LoginView.vue'
-import RegisterView from '../views/RegisterView.vue'
-import HouseListView from '../views/HouseListView.vue'
-import HouseDetailView from '../views/HouseDetailView.vue'
-import AdminHomeView from '../views/AdminHomeView.vue'
-import LandlordHomeView from '../views/LandlordHomeView.vue'
-import TenantHomeView from '../views/TenantHomeView.vue'
-import AgentAssistantView from '../views/AgentAssistantView.vue'
+
+const HomeView = () => import('../views/HomeView.vue')
+const LoginView = () => import('../views/LoginView.vue')
+const RegisterView = () => import('../views/RegisterView.vue')
+const HouseListView = () => import('../views/HouseListView.vue')
+const HouseDetailView = () => import('../views/HouseDetailView.vue')
+const AdminHomeView = () => import('../views/AdminHomeView.vue')
+const LandlordHomeView = () => import('../views/LandlordHomeView.vue')
+const TenantHomeView = () => import('../views/TenantHomeView.vue')
+const AgentAssistantView = () => import('../views/AgentAssistantView.vue')
 
 const routes = [
   {

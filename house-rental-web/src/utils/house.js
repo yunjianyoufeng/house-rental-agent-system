@@ -11,7 +11,7 @@ export function parseImageUrls(value) {
       if (Array.isArray(parsed)) {
         return parsed.filter(Boolean)
       }
-    } catch (_error) {
+    } catch {
       // ignore and fallback to comma/newline split
     }
 

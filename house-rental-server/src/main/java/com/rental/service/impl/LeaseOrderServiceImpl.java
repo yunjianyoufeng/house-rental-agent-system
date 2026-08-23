@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -60,6 +61,9 @@ public class LeaseOrderServiceImpl implements LeaseOrderService {
         if (!dto.getTenantId().equals(contract.getTenantId())) {
             throw new BusinessException("只能为自己的合同创建订单");
         }
+        if (contract.getMonthlyRent() == null || contract.getDeposit() == null) {
+            throw new BusinessException("合同金额信息不完整");
+        }
 
         LambdaQueryWrapper<LeaseOrder> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(LeaseOrder::getContractId, dto.getContractId());
@@ -70,7 +74,11 @@ public class LeaseOrderServiceImpl implements LeaseOrderService {
         LeaseOrder order = new LeaseOrder();
         order.setContractId(dto.getContractId());
         order.setTenantId(contract.getTenantId());
-        order.setAmount(dto.getAmount());
+        BigDecimal amount = contract.getMonthlyRent().add(contract.getDeposit());
+        if (amount.signum() <= 0) {
+            throw new BusinessException("合同应付金额必须大于0");
+        }
+        order.setAmount(amount);
         order.setPayStatus(0);
 
         int rows = leaseOrderMapper.insert(order);

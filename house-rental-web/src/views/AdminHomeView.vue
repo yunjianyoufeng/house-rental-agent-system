@@ -196,7 +196,7 @@
                   v-if="scope.row.contractUrl"
                   type="primary"
                   link
-                  @click="openFile(scope.row.contractUrl)"
+                  @click="openFile(scope.row.id)"
                 >
                   查看附件
                 </el-button>
@@ -602,7 +602,7 @@ import DashboardShell from '../components/DashboardShell.vue'
 import { getStatisticsOverviewApi } from '../api/statistics'
 import { addNoticeApi, deleteNoticeApi, getNoticeListApi, updateNoticeApi } from '../api/notice'
 import { approveAuditHouseApi, getAuditHouseListApi, rejectAuditHouseApi } from '../api/house'
-import { finishContractAdminApi, getAdminContractListApi, updateAdminContractFileApi } from '../api/contract'
+import { downloadContractFileApi, finishContractAdminApi, getAdminContractListApi, updateAdminContractFileApi } from '../api/contract'
 import { getAdminOrderListApi } from '../api/order'
 import { getAdminRepairListApi } from '../api/repair'
 import { getAdminApplicationListApi } from '../api/application'
@@ -859,9 +859,20 @@ watch(overview, () => {
   renderOverviewChart()
 }, { deep: true })
 
-const openFile = (url) => {
-  if (!url) return
-  window.open(url, '_blank')
+const openFile = async (contractId) => {
+  if (!contractId) return
+  try {
+    const blob = await downloadContractFileApi(contractId)
+    const fileUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = fileUrl
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60000)
+  } catch (error) {
+    console.log('合同附件打开失败：', error)
+  }
 }
 
 const handleAdminContractUpload = async (uploadFile, row) => {

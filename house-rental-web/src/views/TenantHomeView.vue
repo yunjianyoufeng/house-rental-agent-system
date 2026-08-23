@@ -213,7 +213,7 @@
           <el-table-column prop="endDate" label="结束日期" width="140" />
           <el-table-column label="合同附件" width="120">
             <template #default="scope">
-              <el-button v-if="scope.row.contractUrl" type="primary" link @click="openFile(scope.row.contractUrl)">查看</el-button>
+              <el-button v-if="scope.row.contractUrl" type="primary" link @click="openFile(scope.row.id)">查看</el-button>
               <span v-else>--</span>
             </template>
           </el-table-column>
@@ -460,7 +460,7 @@ import { logoutApi } from '../api/auth'
 import DashboardShell from '../components/DashboardShell.vue'
 import { getTenantAppointmentListApi } from '../api/appointment'
 import { getTenantApplicationListApi } from '../api/application'
-import { getTenantContractListApi } from '../api/contract'
+import { downloadContractFileApi, getTenantContractListApi } from '../api/contract'
 import { cancelOrderApi, getTenantOrderListApi, payOrderApi, startOrderPaymentApi } from '../api/order'
 import { addRepairApi, getTenantRepairListApi } from '../api/repair'
 import { addComplaintApi, getTenantComplaintListApi } from '../api/complaint'
@@ -622,9 +622,20 @@ const goHouseDetail = (houseId) => {
   router.push(`/house/${houseId}`)
 }
 
-const openFile = (url) => {
-  if (!url) return
-  window.open(url, '_blank')
+const openFile = async (contractId) => {
+  if (!contractId) return
+  try {
+    const blob = await downloadContractFileApi(contractId)
+    const fileUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = fileUrl
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60000)
+  } catch (error) {
+    console.log('合同附件打开失败：', error)
+  }
 }
 
 const handleAddRepair = async () => {

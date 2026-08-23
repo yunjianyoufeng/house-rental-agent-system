@@ -28,6 +28,14 @@ export function getContractDetailApi(id) {
   })
 }
 
+export function downloadContractFileApi(id) {
+  return request({
+    url: `/contract/file/${id}`,
+    method: 'get',
+    responseType: 'blob',
+  })
+}
+
 export function finishContractLandlordApi(id) {
   return request({
     url: `/landlord/contract/finish/${id}`,

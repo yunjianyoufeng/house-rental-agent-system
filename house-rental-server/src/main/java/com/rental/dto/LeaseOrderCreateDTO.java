@@ -1,6 +1,5 @@
 package com.rental.dto;
 
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -14,7 +13,8 @@ public class LeaseOrderCreateDTO {
 
     private Long tenantId;
 
-    @NotNull(message = "订单金额不能为空")
-    @DecimalMin(value = "0.01", message = "订单金额必须大于0")
+    /**
+     * 兼容旧客户端保留；实际订单金额始终由后端根据合同计算。
+     */
     private BigDecimal amount;
 }
