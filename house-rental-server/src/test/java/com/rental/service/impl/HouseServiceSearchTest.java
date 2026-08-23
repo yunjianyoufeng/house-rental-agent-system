@@ -1,10 +1,13 @@
 package com.rental.service.impl;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.rental.dto.HouseSearchDTO;
 import com.rental.entity.House;
 import com.rental.mapper.HouseMapper;
 import com.rental.mapper.SysUserMapper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -19,6 +22,13 @@ class HouseServiceSearchTest {
 
     @Test
     void whitespaceSeparatedKeywordsAreMatchedIndividually() {
+        MapperBuilderAssistant builderAssistant = new MapperBuilderAssistant(
+                new MybatisConfiguration(),
+                ""
+        );
+        builderAssistant.setCurrentNamespace(HouseMapper.class.getName());
+        TableInfoHelper.initTableInfo(builderAssistant, House.class);
+
         HouseMapper houseMapper = mock(HouseMapper.class);
         SysUserMapper userMapper = mock(SysUserMapper.class);
         HouseServiceImpl service = new HouseServiceImpl(houseMapper, userMapper);
