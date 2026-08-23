@@ -205,7 +205,11 @@ async def tool_node(state: AgentState) -> dict:
                     state["role_code"],
                 )
             else:
-                result = await execute_decision_tool(tool_call["name"], arguments)
+                result = await execute_decision_tool(
+                    tool_call["name"],
+                    arguments,
+                    state["authorization"],
+                )
             content = json.dumps(result, ensure_ascii=False)
             status = "success"
         except (

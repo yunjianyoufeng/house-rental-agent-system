@@ -92,7 +92,10 @@ def _optional_body(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def recommend_houses(arguments: dict[str, Any]) -> list[dict[str, Any]]:
+async def recommend_houses(
+    arguments: dict[str, Any],
+    authorization: str | None = None,
+) -> list[dict[str, Any]]:
     query = str(arguments.get("query") or "").strip()
     if not query:
         raise ValueError("租房需求不能为空。")
@@ -110,7 +113,12 @@ async def recommend_houses(arguments: dict[str, Any]) -> list[dict[str, Any]]:
             "topK": arguments.get("top_k", 5),
         }
     )
-    recommendations = await post_backend_data("/recommend/house", body)
+    headers = {"Authorization": authorization} if authorization else None
+    recommendations = await post_backend_data(
+        "/recommend/house",
+        body,
+        headers=headers,
+    )
     return [
         {
             "house": compact_house(item.get("house") or {}),
@@ -218,9 +226,13 @@ async def calculate_rental_budget(arguments: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def execute_decision_tool(name: str, arguments: dict[str, Any]) -> Any:
+async def execute_decision_tool(
+    name: str,
+    arguments: dict[str, Any],
+    authorization: str | None = None,
+) -> Any:
     if name == "recommend_houses":
-        return await recommend_houses(arguments)
+        return await recommend_houses(arguments, authorization)
     if name == "compare_houses":
         return await compare_houses(arguments)
     if name == "calculate_rental_budget":

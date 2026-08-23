@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Arrays;
 
 @Service
 public class HouseServiceImpl implements HouseService {
@@ -112,6 +113,13 @@ public class HouseServiceImpl implements HouseService {
             throw new BusinessException("最低租金不能高于最高租金");
         }
 
+        List<String> keywords = StringUtils.hasText(dto.getKeyword())
+                ? Arrays.stream(dto.getKeyword().trim().split("\\s+"))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList()
+                : List.of();
+
         LambdaQueryWrapper<House> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(House::getStatus, 1)
                 .eq(House::getAuditStatus, 1)
@@ -119,13 +127,25 @@ public class HouseServiceImpl implements HouseService {
                 .like(StringUtils.hasText(dto.getArea()), House::getArea, dto.getArea())
                 .ge(dto.getMinRent() != null, House::getRentPrice, dto.getMinRent())
                 .le(dto.getMaxRent() != null, House::getRentPrice, dto.getMaxRent())
-                .like(StringUtils.hasText(dto.getHouseType()), House::getHouseType, dto.getHouseType())
-                .and(StringUtils.hasText(dto.getKeyword()), nested -> nested
-                        .like(House::getTitle, dto.getKeyword())
-                        .or()
-                        .like(House::getAddress, dto.getKeyword())
-                        .or()
-                        .like(House::getDescription, dto.getKeyword()))
+                .like(StringUtils.hasText(dto.getHouseType()), House::getHouseType, dto.getHouseType());
+
+        if (!keywords.isEmpty()) {
+            wrapper.and(nested -> {
+                for (int index = 0; index < keywords.size(); index++) {
+                    String keyword = keywords.get(index);
+                    if (index > 0) {
+                        nested.or();
+                    }
+                    nested.like(House::getTitle, keyword)
+                            .or()
+                            .like(House::getAddress, keyword)
+                            .or()
+                            .like(House::getDescription, keyword);
+                }
+            });
+        }
+
+        wrapper
                 .orderByAsc(House::getRentPrice)
                 .orderByDesc(House::getId)
                 .last("LIMIT " + dto.getLimit());
