@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     deepseek_api_key: SecretStr | None = None
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"
+    deepseek_timeout_seconds: float = Field(default=30.0, gt=0)
+    deepseek_max_retries: int = Field(default=2, ge=0, le=5)
+    deepseek_retry_base_seconds: float = Field(default=0.5, ge=0, le=10)
     spring_backend_url: str = "http://127.0.0.1:8080"
     redis_url: str = "redis://127.0.0.1:6379/0"
     conversation_ttl_seconds: int = 3600

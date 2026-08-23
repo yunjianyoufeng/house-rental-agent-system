@@ -43,6 +43,8 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run Agent tests
         run: python -m unittest discover -s tests -v
+      - name: Run offline Agent evaluations
+        run: python -m app.evaluation.offline_evaluator
 
   frontend:
     name: Vue build

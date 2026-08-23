@@ -57,4 +57,25 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 .venv\Scripts\python.exe -m app.rag.ingest
 .venv\Scripts\python.exe -c "import app.agent.graph; print('Agent graph import OK')"
 .venv\Scripts\python.exe -B -m unittest discover -s tests -v
+.venv\Scripts\python.exe -m app.evaluation.offline_evaluator
 ```
+
+## Agent 评测
+
+离线评测覆盖角色工具权限、敏感信息拦截、RAG 路由和可信角色上下文，
+不访问 DeepSeek，不消耗模型额度。GitHub CI 会将它作为合并门禁执行：
+
+```cmd
+.venv\Scripts\python.exe -m app.evaluation.offline_evaluator
+```
+
+在线评测会调用正在运行的 Agent，检查真实回答、关键词和 RAG 来源。
+它只在手动提供租客登录令牌后运行，不会由 CI 自动执行：
+
+```cmd
+set AGENT_EVAL_TOKEN=你的租客登录令牌
+.venv\Scripts\python.exe -m app.evaluation.live_evaluator
+set AGENT_EVAL_TOKEN=
+```
+
+评测数据分别位于 `evals/offline_cases.json` 和 `evals/live_cases.json`。

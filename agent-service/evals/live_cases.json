@@ -1,0 +1,9 @@
+[
+  {
+    "id": "rag-contract-order-process",
+    "message": "请说明租房申请审核通过后，合同和订单如何处理？",
+    "anyKeywords": ["合同", "订单"],
+    "forbiddenPhrases": ["无法访问平台知识库"],
+    "requireSources": true
+  }
+]

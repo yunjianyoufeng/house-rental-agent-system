@@ -8,10 +8,14 @@ from redis.exceptions import RedisError
 
 from app.agent.graph import agent_graph, initial_agent_state, stream_agent_events
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.llm_service import DeepSeekConfigurationError
+from app.services.llm_service import (
+    DeepSeekConfigurationError,
+    ModelServiceUnavailableError,
+)
 from app.services.backend_client import BackendServiceError
 from app.services.identity_service import resolve_authenticated_identity
 from app.services.memory_service import save_conversation_exchange
+from app.services.safety_service import UnsafeInputError, validate_user_message
 
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
@@ -28,6 +32,7 @@ async def chat(
     authorization: str | None = Header(default=None),
 ) -> ChatResponse:
     try:
+        validate_user_message(request.message)
         user_id, role_code = await resolve_authenticated_identity(authorization)
         state = await initial_agent_state(
             request.message,
@@ -48,6 +53,16 @@ async def chat(
     except DeepSeekConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except ModelServiceUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except UnsafeInputError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     except OpenAIError as exc:
@@ -80,6 +95,7 @@ async def chat_stream(
 ) -> StreamingResponse:
     async def generate_events() -> AsyncIterator[str]:
         try:
+            validate_user_message(request.message)
             user_id, role_code = await resolve_authenticated_identity(authorization)
             state = await initial_agent_state(
                 request.message,
@@ -101,6 +117,10 @@ async def chat_stream(
                     )
                 yield encode_sse_event(event, item)
         except DeepSeekConfigurationError as exc:
+            yield encode_sse_event("error", {"message": str(exc)})
+        except ModelServiceUnavailableError as exc:
+            yield encode_sse_event("error", {"message": str(exc)})
+        except UnsafeInputError as exc:
             yield encode_sse_event("error", {"message": str(exc)})
         except OpenAIError:
             yield encode_sse_event(

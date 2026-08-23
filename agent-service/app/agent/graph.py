@@ -43,9 +43,12 @@ MAX_TOOL_ROUNDS = 3
 BASE_TOOL_DEFINITIONS = (
     HOUSE_TOOL_DEFINITIONS
     + DECISION_TOOL_DEFINITIONS
-    + APPOINTMENT_TOOL_DEFINITIONS
-    + PREFERENCE_TOOL_DEFINITIONS
     + KNOWLEDGE_TOOL_DEFINITIONS
+)
+TENANT_TOOL_DEFINITIONS = (
+    APPOINTMENT_TOOL_DEFINITIONS
+    + PREFERENCE_TOOL_DEFINITIONS
+    + PERSONAL_TOOL_DEFINITIONS
 )
 PERSONAL_TOOL_NAMES = {
     tool["function"]["name"] for tool in PERSONAL_TOOL_DEFINITIONS
@@ -91,8 +94,25 @@ KNOWLEDGE_QUESTION_KEYWORDS = (
 def available_tool_definitions(role_code: str | None) -> list[dict[str, Any]]:
     tools = list(BASE_TOOL_DEFINITIONS)
     if role_code == "TENANT":
-        tools.extend(PERSONAL_TOOL_DEFINITIONS)
+        tools.extend(TENANT_TOOL_DEFINITIONS)
     return tools
+
+
+def validate_tool_access(
+    tool_name: str,
+    role_code: str | None,
+    authorization: str | None,
+) -> None:
+    allowed_names = {
+        tool["function"]["name"]
+        for tool in available_tool_definitions(role_code)
+    }
+    if tool_name not in allowed_names:
+        raise ValueError("当前登录角色无权调用该工具。")
+    if tool_name in {
+        tool["function"]["name"] for tool in TENANT_TOOL_DEFINITIONS
+    } and not authorization:
+        raise ValueError("登录状态已失效，无法执行租客专属操作。")
 
 
 async def agent_node(state: AgentState) -> dict:
@@ -146,6 +166,11 @@ async def tool_node(state: AgentState) -> dict:
         status = "error"
         error_message = None
         try:
+            validate_tool_access(
+                tool_call["name"],
+                state["role_code"],
+                state["authorization"],
+            )
             arguments = json.loads(tool_call["arguments"] or "{}")
             if tool_call["name"] in HOUSE_TOOL_NAMES:
                 result = await execute_house_tool(tool_call["name"], arguments)
