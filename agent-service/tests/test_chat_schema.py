@@ -30,6 +30,7 @@ class ChatSchemaTest(unittest.TestCase):
         response = ChatResponse(
             answer="可以在合同生效期间提交报修。",
             conversation_id="conversation-1",
+            trace_id="1234567890abcdef",
             sources=[
                 {
                     "source": "repair-and-complaint.md",
@@ -42,6 +43,7 @@ class ChatSchemaTest(unittest.TestCase):
 
         payload = response.model_dump(by_alias=True)
         self.assertEqual("conversation-1", payload["conversationId"])
+        self.assertEqual("1234567890abcdef", payload["traceId"])
         self.assertEqual("repair-and-complaint.md", payload["sources"][0]["source"])
         self.assertEqual("报修提交条件", payload["sources"][0]["section"])
 

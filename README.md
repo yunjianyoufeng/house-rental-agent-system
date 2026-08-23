@@ -10,6 +10,9 @@
 - Agent 办理：LangGraph Tool Calling 和看房预约二次确认
 - 记忆系统：Redis 短期会话状态，MySQL 结构化长期租房偏好
 - 知识问答：`sqlite-vec` 本地向量检索，覆盖平台办理流程
+- 企业可靠性：模型超时重试、降级提示、工具权限边界和敏感信息拦截
+- 可观测性：请求级 Trace、模型 Token/成本、工具耗时和轻量指标接口
+- 质量门禁：自动化测试、离线 Agent 评测和 GitHub Actions CI
 - GitHub 安全：密钥通过环境变量配置，本地环境和生成文件均已忽略
 
 ## 系统展示
@@ -136,6 +139,8 @@ CREATE DATABASE house_rental
 | `REDIS_PASSWORD` | Redis 密码，无密码可留空 |
 | `DEEPSEEK_API_KEY` | 后端旧推荐解析使用的 DeepSeek Key |
 | `AGENT_CHAT_URL` | Agent 聊天接口地址 |
+| `AGENT_STREAM_URL` | Agent 流式聊天接口地址 |
+| `EMBEDDING_RECOMMEND_URL` | 可选旧语义推荐服务地址 |
 
 本地开发可以在 IntelliJ IDEA 的运行配置中添加这些变量。不要把真实密码或 API Key 写入 Git。
 
@@ -194,6 +199,8 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
 
 健康检查：`http://127.0.0.1:8001/health`
+
+运行指标：`http://127.0.0.1:8001/metrics`
 
 ### Vue
 
@@ -280,6 +287,12 @@ cd agent-service
 - `uploads` 可能包含用户上传内容，默认不提交。
 - 支付功能是演示流程，不接入真实资金渠道。
 - 上传 GitHub 前先运行 `git status`，确认没有敏感文件进入暂存区。
+
+## 部署方式
+
+内存较少的电脑继续使用上面的本地分服务启动方式。仓库同时提供可选的
+`compose.yaml`、各服务 Dockerfile 和 Nginx 配置，用于新环境部署或演示。
+完整说明见 [`DEPLOYMENT_ENTERPRISE.md`](DEPLOYMENT_ENTERPRISE.md)。
 
 ## 旧版语义推荐说明
 

@@ -19,6 +19,9 @@ def _settings(max_retries: int = 2):
         deepseek_timeout_seconds=5.0,
         deepseek_max_retries=max_retries,
         deepseek_retry_base_seconds=0,
+        deepseek_input_cache_hit_cny_per_million=0.02,
+        deepseek_input_cache_miss_cny_per_million=1.0,
+        deepseek_output_cny_per_million=2.0,
     )
 
 

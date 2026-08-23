@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from time import perf_counter
 from typing import Any
 
 from openai import (
@@ -12,6 +13,7 @@ from openai import (
 )
 
 from app.core.config import get_settings
+from app.core.logging_config import log_model_call
 
 
 SYSTEM_PROMPT = """你是房屋租赁系统的智能租房助手。
@@ -67,16 +69,73 @@ def _create_client() -> AsyncOpenAI:
     )
 
 
-async def _request_completion(request_options: dict[str, Any]):
+def _usage_value(usage: Any, name: str) -> int:
+    if usage is None:
+        return 0
+    if isinstance(usage, dict):
+        value = usage.get(name, 0)
+    else:
+        value = getattr(usage, name, 0)
+    return int(value or 0)
+
+
+def summarize_usage(usage: Any) -> dict[str, int]:
+    prompt_tokens = _usage_value(usage, "prompt_tokens")
+    cache_hit_tokens = _usage_value(usage, "prompt_cache_hit_tokens")
+    cache_miss_tokens = _usage_value(usage, "prompt_cache_miss_tokens")
+    if not cache_miss_tokens and prompt_tokens >= cache_hit_tokens:
+        cache_miss_tokens = prompt_tokens - cache_hit_tokens
+    return {
+        "promptTokens": prompt_tokens,
+        "promptCacheHitTokens": cache_hit_tokens,
+        "promptCacheMissTokens": cache_miss_tokens,
+        "completionTokens": _usage_value(usage, "completion_tokens"),
+        "totalTokens": _usage_value(usage, "total_tokens"),
+    }
+
+
+def estimate_cost_cny(usage: dict[str, int]) -> float:
+    settings = get_settings()
+    cost = (
+        usage["promptCacheHitTokens"]
+        * settings.deepseek_input_cache_hit_cny_per_million
+        + usage["promptCacheMissTokens"]
+        * settings.deepseek_input_cache_miss_cny_per_million
+        + usage["completionTokens"]
+        * settings.deepseek_output_cny_per_million
+    ) / 1_000_000
+    return round(cost, 8)
+
+
+async def _request_completion(
+    request_options: dict[str, Any],
+) -> tuple[Any, int, int]:
     settings = get_settings()
     client = _create_client()
+    started_at = perf_counter()
     for attempt in range(settings.deepseek_max_retries + 1):
         try:
-            return await client.chat.completions.create(**request_options)
+            response = await client.chat.completions.create(**request_options)
+            duration_ms = round((perf_counter() - started_at) * 1000)
+            return response, attempt, duration_ms
         except OpenAIError as exc:
             if not _is_retryable_error(exc):
+                log_model_call(
+                    model=settings.deepseek_model,
+                    status="error",
+                    duration_ms=round((perf_counter() - started_at) * 1000),
+                    retries=attempt,
+                    error_type=type(exc).__name__,
+                )
                 raise
             if attempt >= settings.deepseek_max_retries:
+                log_model_call(
+                    model=settings.deepseek_model,
+                    status="error",
+                    duration_ms=round((perf_counter() - started_at) * 1000),
+                    retries=attempt,
+                    error_type=type(exc).__name__,
+                )
                 raise ModelServiceUnavailableError(
                     "模型服务暂时不可用，自动重试后仍未恢复。"
                 ) from exc
@@ -142,7 +201,17 @@ async def create_completion(
     if tools:
         request_options["tools"] = tools
         request_options["tool_choice"] = "auto"
-    return await _request_completion(request_options)
+    response, retries, duration_ms = await _request_completion(request_options)
+    usage = summarize_usage(getattr(response, "usage", None))
+    log_model_call(
+        model=settings.deepseek_model,
+        status="success",
+        duration_ms=duration_ms,
+        retries=retries,
+        usage=usage,
+        estimated_cost_cny=estimate_cost_cny(usage),
+    )
+    return response
 
 
 async def create_completion_stream(
@@ -155,11 +224,43 @@ async def create_completion_stream(
         "messages": messages,
         "temperature": 0.2,
         "stream": True,
+        "stream_options": {"include_usage": True},
     }
     if tools:
         request_options["tools"] = tools
         request_options["tool_choice"] = "auto"
-    return await _request_completion(request_options)
+    stream, retries, request_duration_ms = await _request_completion(request_options)
+
+    async def tracked_stream():
+        usage = summarize_usage(None)
+        completed = False
+        error_type = None
+        stream_started_at = perf_counter()
+        try:
+            async for chunk in stream:
+                chunk_usage = getattr(chunk, "usage", None)
+                if chunk_usage is not None:
+                    usage = summarize_usage(chunk_usage)
+                yield chunk
+            completed = True
+        except OpenAIError as exc:
+            error_type = type(exc).__name__
+            raise
+        finally:
+            duration_ms = request_duration_ms + round(
+                (perf_counter() - stream_started_at) * 1000
+            )
+            log_model_call(
+                model=settings.deepseek_model,
+                status="success" if completed else "error",
+                duration_ms=duration_ms,
+                retries=retries,
+                usage=usage,
+                estimated_cost_cny=estimate_cost_cny(usage),
+                error_type=error_type or (None if completed else "StreamInterrupted"),
+            )
+
+    return tracked_stream()
 
 
 async def create_history_summary(

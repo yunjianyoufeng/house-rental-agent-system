@@ -10,6 +10,7 @@ from app.core.logging_config import (
     sanitize_log_value,
     shutdown_tool_logging,
 )
+from app.core.observability import reset_trace_id, set_trace_id
 
 
 class ToolLoggingTest(unittest.TestCase):
@@ -33,20 +34,25 @@ class ToolLoggingTest(unittest.TestCase):
             log_path = Path(temp_dir) / "tool-calls.jsonl"
             configure_tool_logging(log_path, max_bytes=2048, backup_count=1)
 
-            log_tool_call(
-                conversation_id="conversation-1",
-                user_id=8,
-                tool_name="search_rental_knowledge",
-                arguments={"query": "报修条件"},
-                status="success",
-                duration_ms=12,
-                result={"results": [{"source": "repair-and-complaint.md"}]},
-            )
+            trace_token = set_trace_id("trace-tool-123456")
+            try:
+                log_tool_call(
+                    conversation_id="conversation-1",
+                    user_id=8,
+                    tool_name="search_rental_knowledge",
+                    arguments={"query": "报修条件"},
+                    status="success",
+                    duration_ms=12,
+                    result={"results": [{"source": "repair-and-complaint.md"}]},
+                )
+            finally:
+                reset_trace_id(trace_token)
             shutdown_tool_logging()
 
             event = json.loads(log_path.read_text(encoding="utf-8").strip())
             self.assertEqual("agent_tool_call", event["event"])
             self.assertEqual("search_rental_knowledge", event["tool"])
+            self.assertEqual("trace-tool-123456", event["traceId"])
             self.assertEqual("success", event["status"])
             self.assertEqual(1, event["result"]["itemCount"])
 

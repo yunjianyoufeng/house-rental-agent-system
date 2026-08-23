@@ -10,6 +10,14 @@ permissions:
   contents: read
 
 jobs:
+  deployment-config:
+    name: Docker Compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: docker compose --env-file docker.env.example config --quiet
+
   backend:
     name: Spring Boot tests
     runs-on: ubuntu-latest

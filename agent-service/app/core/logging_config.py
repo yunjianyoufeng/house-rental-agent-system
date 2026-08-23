@@ -5,6 +5,13 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
+from app.core.observability import (
+    get_trace_id,
+    record_model_call,
+    record_request,
+    record_tool_call as record_tool_metric,
+)
+
 
 TOOL_LOGGER_NAME = "house_rental_agent.tool_calls"
 REDACTED_VALUE = "[REDACTED]"
@@ -86,6 +93,7 @@ def log_tool_call(
     event = {
         "timestamp": datetime.now(UTC).isoformat(),
         "event": "agent_tool_call",
+        "traceId": get_trace_id(),
         "conversationId": conversation_id,
         "userId": user_id,
         "tool": tool_name,
@@ -100,3 +108,65 @@ def log_tool_call(
     logging.getLogger(TOOL_LOGGER_NAME).info(
         json.dumps(event, ensure_ascii=False, separators=(",", ":"))
     )
+    record_tool_metric(status, duration_ms)
+
+
+def log_model_call(
+    *,
+    model: str,
+    status: str,
+    duration_ms: int,
+    retries: int,
+    usage: dict[str, int] | None = None,
+    estimated_cost_cny: float = 0.0,
+    error_type: str | None = None,
+) -> None:
+    safe_usage = usage or {}
+    event = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "event": "agent_model_call",
+        "traceId": get_trace_id(),
+        "model": model,
+        "status": status,
+        "durationMs": duration_ms,
+        "retries": retries,
+        "usage": safe_usage,
+        "estimatedCostCny": round(estimated_cost_cny, 8),
+    }
+    if error_type:
+        event["errorType"] = error_type
+    logging.getLogger(TOOL_LOGGER_NAME).info(
+        json.dumps(event, ensure_ascii=False, separators=(",", ":"))
+    )
+    record_model_call(
+        status,
+        duration_ms,
+        retries,
+        safe_usage,
+        estimated_cost_cny,
+    )
+
+
+def log_agent_request(
+    *,
+    status: str,
+    duration_ms: int,
+    conversation_id: str | None,
+    user_id: int | None,
+    error_type: str | None = None,
+) -> None:
+    event = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "event": "agent_request",
+        "traceId": get_trace_id(),
+        "conversationId": conversation_id,
+        "userId": user_id,
+        "status": status,
+        "durationMs": duration_ms,
+    }
+    if error_type:
+        event["errorType"] = error_type
+    logging.getLogger(TOOL_LOGGER_NAME).info(
+        json.dumps(event, ensure_ascii=False, separators=(",", ":"))
+    )
+    record_request(status, duration_ms)

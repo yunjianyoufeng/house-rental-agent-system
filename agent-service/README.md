@@ -10,6 +10,8 @@
 - MySQL 长期租房偏好（经 Spring Boot 接口访问）
 - `sqlite-vec` 轻量级 RAG 平台知识问答
 - Agent 工具调用结构化滚动日志
+- 请求级 `traceId`、模型 Token/成本与轻量运行指标
+- 模型超时重试、安全边界和自动化 Agent 评测
 - DeepSeek、Spring Boot、Vue 端到端 SSE 流式回答
 
 ## 配置
@@ -19,6 +21,9 @@ copy .env.example .env
 ```
 
 在 `.env` 中填写 `DEEPSEEK_API_KEY`。其余配置已有本地开发默认值。`.env` 不应提交到 Git。
+
+默认模型为 `deepseek-v4-flash`。估算成本使用 `.env.example` 中的人民币单价，
+价格变化时只需调整环境变量，不需要修改代码。
 
 ## 安装与启动
 
@@ -38,11 +43,13 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 
 当前向量由稳定的中文字符特征生成，不依赖本地神经网络模型。这是真实的 `sqlite-vec` 向量检索，但语义能力弱于大型 Embedding 模型，优点是内存和磁盘占用很低。
 
-## Agent 调用日志
+## Agent 调用日志与指标
 
-工具调用日志默认写入 `logs/tool-calls.jsonl`，每行是一条 JSON 记录，包含工具名、执行状态、耗时、会话、用户标识、脱敏参数和精简结果摘要。
+结构化事件默认写入 `logs/tool-calls.jsonl`，每行是一条 JSON 记录，覆盖请求、模型和工具调用。记录包含 `traceId`、状态、耗时、重试次数、Token、估算成本、会话、脱敏参数和精简结果摘要。
 
 单个文件默认最多 2 MB，并保留 3 个备份，避免长期运行占用过多磁盘。授权信息、令牌、密码和 API Key 会被自动遮盖。日志目录不会提交到 Git。
+
+运行时访问 `http://127.0.0.1:8001/metrics` 可查看当前进程内的请求量、错误数、平均耗时、模型 Token、估算成本和工具调用量。服务重启后指标会清零，结构化滚动日志仍保留。
 
 ## 运行依赖
 

@@ -28,6 +28,7 @@ class ChatResponse(BaseModel):
 
     answer: str
     conversation_id: str | None = Field(default=None, alias="conversationId")
+    trace_id: str = Field(alias="traceId", min_length=16, max_length=64)
     sources: list["KnowledgeSource"] = Field(default_factory=list)
 
 

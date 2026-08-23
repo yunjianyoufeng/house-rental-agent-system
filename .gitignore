@@ -2,6 +2,7 @@
 **/.env
 **/.env.*
 !**/.env.example
+docker.env
 
 # IDE and operating system files
 **/.idea/

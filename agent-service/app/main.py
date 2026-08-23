@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.chat import router as chat_router
 from app.core.config import get_settings
 from app.core.logging_config import configure_tool_logging, shutdown_tool_logging
+from app.core.observability import metrics_snapshot
 from app.services.memory_service import close_redis_client
 
 
@@ -40,3 +41,10 @@ def health() -> dict[str, str]:
         "service": "house-rental-agent",
         "model": settings.deepseek_model,
     }
+
+
+@app.get("/metrics")
+def metrics() -> dict:
+    """返回当前 Agent 进程的轻量运行指标，不包含用户对话内容。"""
+
+    return metrics_snapshot()

@@ -12,5 +12,7 @@ public class AgentChatResponseDTO {
 
     private String conversationId;
 
+    private String traceId;
+
     private List<AgentKnowledgeSourceDTO> sources = new ArrayList<>();
 }

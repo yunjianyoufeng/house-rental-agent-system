@@ -16,6 +16,7 @@ class AgentChatResponseDTOTest {
                 {
                   "answer": "可以在合同生效期间提交报修。",
                   "conversationId": "conversation-1",
+                  "traceId": "1234567890abcdef",
                   "sources": [
                     {
                       "source": "repair-and-complaint.md",
@@ -33,6 +34,7 @@ class AgentChatResponseDTOTest {
         );
 
         assertEquals("conversation-1", response.getConversationId());
+        assertEquals("1234567890abcdef", response.getTraceId());
         assertNotNull(response.getSources());
         assertEquals(1, response.getSources().size());
         assertEquals("repair-and-complaint.md", response.getSources().get(0).getSource());

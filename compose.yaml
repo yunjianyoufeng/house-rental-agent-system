@@ -1,0 +1,117 @@
+name: house-rental-agent-system
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 docker.env 中配置数据库密码}
+      MYSQL_DATABASE: house_rental
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+    ports:
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./house_rental.sql:/docker-entrypoint-initdb.d/001-house_rental.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 512m
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "96mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    mem_limit: 128m
+
+  backend:
+    build:
+      context: ./house-rental-server
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      DB_URL: jdbc:mysql://mysql:3306/house_rental?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AGENT_CHAT_URL: http://agent:8001/api/agent/chat
+      AGENT_STREAM_URL: http://agent:8001/api/agent/chat/stream
+      EMBEDDING_RECOMMEND_URL: http://embedding:9000/semantic-recommend
+      UPLOAD_BASE_DIR: /app/uploads
+      TZ: Asia/Shanghai
+    ports:
+      - "${BACKEND_HOST_PORT:-8080}:8080"
+    volumes:
+      - uploads-data:/app/uploads
+    mem_limit: 512m
+
+  agent:
+    build:
+      context: ./agent-service
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?请在 docker.env 中配置 DeepSeek API Key}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      SPRING_BACKEND_URL: http://backend:8080
+      REDIS_URL: redis://redis:6379/0
+      AGENT_HOST: 0.0.0.0
+      AGENT_PORT: 8001
+      AGENT_TOOL_LOG_PATH: /app/logs/agent-events.jsonl
+      TZ: Asia/Shanghai
+    ports:
+      - "${AGENT_HOST_PORT:-8001}:8001"
+    volumes:
+      - agent-logs:/app/logs
+    mem_limit: 384m
+
+  web:
+    build:
+      context: ./house-rental-web
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${WEB_HOST_PORT:-5173}:80"
+    mem_limit: 96m
+
+  embedding:
+    profiles: ["embedding"]
+    build:
+      context: ./ai-recommend-service
+    restart: unless-stopped
+    environment:
+      SENTENCE_TRANSFORMER_MODEL_PATH: /models/text2vec-base-chinese
+      TZ: Asia/Shanghai
+    volumes:
+      - ${SENTENCE_TRANSFORMER_MODEL_PATH:-./models/text2vec-base-chinese}:/models/text2vec-base-chinese:ro
+    mem_limit: 1536m
+
+volumes:
+  mysql-data:
+  redis-data:
+  uploads-data:
+  agent-logs:

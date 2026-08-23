@@ -8,8 +8,9 @@ ai:
     api-key: ${DEEPSEEK_API_KEY:}
   agent:
     chat-url: ${AGENT_CHAT_URL:http://127.0.0.1:8001/api/agent/chat}
+    stream-url: ${AGENT_STREAM_URL:http://127.0.0.1:8001/api/agent/chat/stream}
   recommend:
-    embedding-url: http://localhost:9000/semantic-recommend
+    embedding-url: ${EMBEDDING_RECOMMEND_URL:http://localhost:9000/semantic-recommend}
 
 spring:
   application:
