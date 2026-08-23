@@ -84,17 +84,30 @@
     <el-drawer v-model="historyVisible" title="历史对话" size="360px">
       <div v-loading="historyLoading" class="history-list">
         <el-empty v-if="!historyLoading && !historyList.length" description="暂无历史对话" />
-        <button
+        <div
           v-for="item in historyList"
           :key="item.conversationId"
-          type="button"
           class="history-item"
           :class="{ 'history-item-active': item.conversationId === conversationId }"
-          @click="restoreConversation(item.conversationId)"
         >
-          <span class="history-title">{{ item.title }}</span>
-          <span class="history-time">{{ formatHistoryTime(item.lastMessageTime) }}</span>
-        </button>
+          <button
+            type="button"
+            class="history-item-main"
+            @click="restoreConversation(item.conversationId)"
+          >
+            <span class="history-title">{{ item.title }}</span>
+            <span class="history-time">{{ formatHistoryTime(item.lastMessageTime) }}</span>
+          </button>
+          <el-button
+            type="danger"
+            link
+            class="history-delete"
+            :disabled="sending"
+            @click.stop="deleteConversation(item)"
+          >
+            删除
+          </el-button>
+        </div>
       </div>
     </el-drawer>
   </DashboardShell>
@@ -102,12 +115,13 @@
 
 <script setup>
 import { computed, nextTick, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import DashboardShell from '../components/DashboardShell.vue'
 import {
   agentChatStreamApi,
+  deleteAgentHistoryApi,
   getAgentHistoryApi,
   getAgentHistoryDetailApi,
 } from '../api/agent'
@@ -249,6 +263,41 @@ const restoreConversation = async (targetConversationId) => {
   }
 }
 
+const deleteConversation = async (item) => {
+  if (sending.value) {
+    ElMessage.warning('请等待当前回答完成')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定删除历史对话“${item.title}”吗？删除后不可恢复。`,
+      '删除历史对话',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+      },
+    )
+    historyLoading.value = true
+    await deleteAgentHistoryApi(item.conversationId)
+    historyList.value = historyList.value.filter(
+      (history) => history.conversationId !== item.conversationId,
+    )
+    if (item.conversationId === conversationId.value) {
+      conversationId.value = createConversationId()
+      messages.value = defaultMessages.map((message) => ({ ...message }))
+      persistConversation()
+      await scrollToBottom()
+    }
+    ElMessage.success('历史对话已删除')
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error.message || '历史对话删除失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
 const formatHistoryTime = (value) => String(value || '').replace('T', ' ').slice(0, 16)
 
 const sendMessage = async () => {
@@ -357,14 +406,13 @@ const logout = async () => {
 .history-item {
   display: flex;
   width: 100%;
-  padding: 13px 14px;
+  padding: 8px 10px 8px 14px;
   border: 1px solid #ebeef5;
   border-radius: 10px;
   background: #fff;
-  cursor: pointer;
   text-align: left;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
 .history-item + .history-item {
@@ -375,6 +423,23 @@ const logout = async () => {
 .history-item-active {
   border-color: #409eff;
   background: #ecf5ff;
+}
+
+.history-item-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history-delete {
+  flex-shrink: 0;
 }
 
 .history-title {

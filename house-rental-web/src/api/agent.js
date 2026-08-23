@@ -22,6 +22,13 @@ export function getAgentHistoryDetailApi(conversationId) {
   })
 }
 
+export function deleteAgentHistoryApi(conversationId) {
+  return request({
+    url: `/tenant/agent-history/${encodeURIComponent(conversationId)}`,
+    method: 'delete',
+  })
+}
+
 export async function agentChatStreamApi(data, handlers = {}) {
   const userInfo = JSON.parse(localStorage.getItem('userInfo') || 'null')
   const headers = {

@@ -14,27 +14,38 @@ import com.rental.vo.AgentConversationDetailVO;
 import com.rental.vo.AgentConversationVO;
 import com.rental.vo.AgentMessageVO;
 import org.springframework.stereotype.Service;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
 
 @Service
 public class AgentConversationServiceImpl implements AgentConversationService {
 
+    private static final Logger log = LoggerFactory.getLogger(AgentConversationServiceImpl.class);
     private static final int HISTORY_LIMIT = 30;
     private static final int DETAIL_MESSAGE_LIMIT = 100;
     private static final int CONTEXT_MESSAGE_LIMIT = 40;
 
     private final AgentConversationMapper conversationMapper;
     private final AgentMessageMapper messageMapper;
+    private final StringRedisTemplate stringRedisTemplate;
 
     public AgentConversationServiceImpl(
             AgentConversationMapper conversationMapper,
-            AgentMessageMapper messageMapper) {
+            AgentMessageMapper messageMapper,
+            StringRedisTemplate stringRedisTemplate) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     @Override
@@ -151,6 +162,46 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         conversation.setSummaryMessageId(dto.getThroughMessageId());
         if (conversationMapper.updateById(conversation) <= 0) {
             throw new BusinessException("Agent会话摘要更新失败");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long userId, String conversationId) {
+        AgentConversation conversation = requireConversation(userId, conversationId);
+        messageMapper.delete(
+                new LambdaQueryWrapper<AgentMessage>()
+                        .eq(AgentMessage::getUserId, userId)
+                        .eq(AgentMessage::getConversationId, conversationId)
+        );
+        if (conversationMapper.deleteById(conversation.getId()) <= 0) {
+            throw new BusinessException("Agent历史对话删除失败");
+        }
+        clearRedisConversationState(userId, conversationId);
+    }
+
+    private void clearRedisConversationState(Long userId, String conversationId) {
+        String conversationHash = sha256(conversationId);
+        List<String> keys = List.of(
+                "agent:conversation:" + userId + ":" + conversationHash,
+                "agent:appointment:" + userId + ":" + conversationHash
+        );
+        try {
+            stringRedisTemplate.delete(keys);
+        } catch (RuntimeException exception) {
+            log.warn("Agent历史已从MySQL删除，但Redis会话缓存清理失败：userId={}, conversationId={}",
+                    userId, conversationId, exception);
+        }
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(
+                    digest.digest(value.getBytes(StandardCharsets.UTF_8))
+            );
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("当前Java环境不支持SHA-256", exception);
         }
     }
 

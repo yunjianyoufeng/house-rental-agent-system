@@ -10,6 +10,7 @@ import com.rental.vo.AgentConversationDetailVO;
 import com.rental.vo.AgentConversationVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -68,6 +69,14 @@ public class AgentConversationController {
             HttpServletRequest request) {
         conversationService.updateSummary(currentTenantId(request), conversationId, dto);
         return Result.success("Agent对话摘要已更新");
+    }
+
+    @DeleteMapping("/{conversationId}")
+    public Result<String> delete(
+            @PathVariable String conversationId,
+            HttpServletRequest request) {
+        conversationService.delete(currentTenantId(request), conversationId);
+        return Result.success("Agent历史对话已删除");
     }
 
     private Long currentTenantId(HttpServletRequest request) {

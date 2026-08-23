@@ -19,4 +19,6 @@ public interface AgentConversationService {
     AgentConversationContextVO context(Long userId, String conversationId);
 
     void updateSummary(Long userId, String conversationId, AgentConversationSummaryDTO dto);
+
+    void delete(Long userId, String conversationId);
 }
