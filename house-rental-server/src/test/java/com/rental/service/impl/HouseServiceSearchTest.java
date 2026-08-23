@@ -25,6 +25,7 @@ class HouseServiceSearchTest {
 
         when(houseMapper.selectList(any())).thenAnswer(invocation -> {
             LambdaQueryWrapper<House> wrapper = invocation.getArgument(0);
+            wrapper.getSqlSegment();
             List<String> values = wrapper.getParamNameValuePairs().values().stream()
                     .map(String::valueOf)
                     .toList();
