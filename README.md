@@ -14,7 +14,7 @@
 - 记忆系统：Redis 短期会话状态，MySQL 结构化长期租房偏好
 - 知识问答：云端 Embedding + Chroma + FTS5 混合检索，`sqlite-vec` 自动降级
 - 企业可靠性：模型超时重试、降级提示、工具权限边界和敏感信息拦截
-- 可观测性：请求级 Trace、模型 Token/成本、工具耗时和轻量指标接口
+- 可观测性：LangSmith Agent 链路、请求级 Trace、模型 Token/成本、工具耗时和轻量指标接口
 - 质量门禁：自动化测试、离线 Agent 评测和 GitHub Actions CI
 - GitHub 安全：密钥通过环境变量配置，本地环境和生成文件均已忽略
 
@@ -100,6 +100,12 @@ Spring Boot 在转发请求时注入已验证的用户 ID、角色和 Token。�
 
 ![Agent 历史对话管理](docs/images/agent-history-management.png)
 
+### LangSmith Agent 链路观测
+
+Agent 服务可选接入 LangSmith，将一次租房问答串联为请求根链路，并展示 LangGraph、DeepSeek、业务工具和 RAG 检索节点的调用顺序、耗时与异常状态。默认隐藏模型输入输出，工具仅记录参数名称和结果摘要，RAG 仅记录查询长度、命中数量与知识来源，避免上传 Token 和用户对话等敏感内容。
+
+![LangSmith Agent 链路观测](docs/images/langsmith-trace.png)
+
 ### 推荐模型评价
 
 管理员可基于人工标注查询集比较 RULE、TF-IDF 和可选 EMBEDDING 模型，查看 Precision@K、Recall@K、F1@K、NDCG@K 与平均响应时间。
@@ -114,6 +120,7 @@ flowchart TD
     B --> C[后端校验 Token 并注入用户身份]
     C --> D[FastAPI 构建会话上下文]
     D --> E[LangGraph Agent]
+    E -. Trace / 耗时 / 异常 .-> M[LangSmith 可观测平台]
     E --> F{是否调用工具}
     F -->|真实房源 / 个人业务| G[调用 Spring Boot Tool API]
     F -->|平台规则| H[Chroma + FTS5 混合检索]
@@ -178,9 +185,9 @@ Spring Boot + MyBatis-Plus
       | MySQL / Redis           | HTTP
       v                         v
 业务数据与状态          FastAPI + LangGraph Agent
-                                |
-                    +-----------+-----------+
-                    |           |           |
+                                |                  |
+                    +-----------+-----------+      +--> LangSmith
+                    |           |           |           链路观测
                  DeepSeek    业务 Tools   混合检索 RAG
 ```
 
@@ -207,11 +214,12 @@ house_rental.sql          MySQL 初始化及演示数据
 |---|---|
 | 前端 | Vue 3、Vite、Element Plus、Axios、Pinia、ECharts |
 | 后端 | Java 17、Spring Boot 3、MyBatis-Plus、Spring Security |
-| Agent | Python 3.11、FastAPI、LangGraph、OpenAI SDK |
+| Agent | Python 3.11、FastAPI、LangGraph、OpenAI SDK、LangSmith |
 | 大模型 | DeepSeek API |
 | 数据 | MySQL 8、Redis、Chroma、SQLite FTS5 + sqlite-vec |
 | Embedding | 百炼 `text-embedding-v4` OpenAI 兼容 API |
 | 推荐 | 规则模型、TF-IDF；旧版 EMBEDDING 服务可选 |
+| 可观测性 | LangSmith Trace、结构化工具日志、Token/成本估算、轻量指标接口 |
 
 ## 环境要求
 
@@ -272,6 +280,18 @@ RAG_EMBEDDING_API_KEY=你的百炼密钥
 ```
 
 `.env` 已被忽略，不会上传 GitHub。
+
+LangSmith 为可选能力，默认关闭。需要查看 Agent、模型、工具和 RAG 完整链路时，在 `.env` 中增加：
+
+```text
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=你的LangSmith密钥
+LANGSMITH_PROJECT=house-rental-agent-dev
+LANGSMITH_HIDE_INPUTS=true
+LANGSMITH_HIDE_OUTPUTS=true
+```
+
+隐私配置默认隐藏模型输入输出；真实 Key 只保存在本地 `.env` 或部署环境变量中，不要提交到 Git。
 
 默认使用百炼公共兼容地址；需要更高稳定性时，可按[官方 Base URL 文档](https://help.aliyun.com/zh/model-studio/base-url)替换为业务空间专属地址。Embedding 接口格式见[百炼 OpenAI 兼容文档](https://help.aliyun.com/zh/model-studio/embedding-interfaces-compatible-with-openai/)。
 
