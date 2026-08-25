@@ -20,7 +20,7 @@
 启动顺序：
 
 ```text
-MySQL → Redis → Spring Boot → Agent → Vue
+MySQL → Redis → Spring Boot → 构建RAG索引 → Agent → Vue
 ```
 
 检查地址：
@@ -36,9 +36,12 @@ Agent `.env` 应使用：
 
 ```text
 DEEPSEEK_MODEL=deepseek-v4-flash
+RAG_EMBEDDING_PROVIDER=openai_compatible
+RAG_EMBEDDING_MODEL=text-embedding-v4
+RAG_EMBEDDING_DIMENSIONS=768
 ```
 
-不要在终端截图、日志或 Git 中暴露 `DEEPSEEK_API_KEY`。
+不要在终端截图、日志或 Git 中暴露 `DEEPSEEK_API_KEY` 或 `RAG_EMBEDDING_API_KEY`。首次启动或知识文档变化后，在 Agent 目录执行 `python -m app.rag.ingest`。
 
 ## 3. 轻量可观测性
 
@@ -51,7 +54,7 @@ DEEPSEEK_MODEL=deepseek-v4-flash
 查看最近日志（CMD）：
 
 ```cmd
-cd /d D:\javaprogramsssss\agent-service
+cd agent-service
 powershell -NoProfile -Command "Get-Content .\logs\tool-calls.jsonl -Tail 20"
 ```
 
@@ -75,7 +78,7 @@ Docker 方式会下载并保存基础镜像。磁盘紧张时不要执行本节�
 copy docker.env.example docker.env
 ```
 
-编辑 `docker.env`，至少修改数据库密码和 DeepSeek Key。`docker.env` 已加入 `.gitignore`。
+编辑 `docker.env`，至少修改数据库密码、DeepSeek Key 和云端 Embedding Key。`docker.env` 已加入 `.gitignore`。
 
 只校验 Compose 配置，不下载镜像：
 
@@ -86,8 +89,10 @@ docker compose --env-file docker.env config
 构建并启动默认轻量栈：
 
 ```cmd
-docker compose --env-file docker.env up -d --build mysql redis backend agent web
+docker compose --env-file docker.env up -d --build
 ```
+
+`rag-init` 会在需要创建或重新启动该一次性容器时调用云端 Embedding，并重建共享卷中的 RAG 索引，因此需要可用网络和 `RAG_EMBEDDING_API_KEY`，同时可能产生少量 API 费用。知识文档未变化时，不必单独重复执行索引构建命令。
 
 访问：
 
@@ -99,11 +104,11 @@ http://127.0.0.1:5173
 
 ## 5. 可选旧 Embedding 服务
 
-`ai-recommend-service` 会加载 `sentence-transformers`，内存和镜像体积明显更大，默认不会启动。只有确实需要演示旧版 EMBEDDING 推荐时才使用：
+`ai-recommend-service` 会加载旧版 `sentence-transformers`，内存和镜像体积明显更大，不参与 Agent RAG。只有确实需要演示历史 EMBEDDING 推荐时才使用：
 
 ```cmd
 set SENTENCE_TRANSFORMER_MODEL_PATH=D:\你的模型目录
-docker compose --env-file docker.env --profile embedding up -d --build embedding
+docker compose --env-file docker.env --profile legacy-embedding up -d --build embedding
 ```
 
 该模式额外允许最多约 1.5 GB 内存。普通 Agent、规则推荐和 TF-IDF 推荐不依赖它。
@@ -135,6 +140,7 @@ Compose 使用以下命名卷：
 - `redis-data`：登录和短期状态；
 - `uploads-data`：房源图片与合同附件；
 - `agent-logs`：Agent 滚动日志。
+- `agent-rag`：Chroma、FTS5 和 sqlite-vec 索引。
 
 执行 `docker compose down` 不会删除这些卷。不要执行 `docker compose down -v`，除非明确要永久删除全部容器数据。
 

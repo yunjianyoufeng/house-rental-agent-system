@@ -1,8 +1,10 @@
-fastapi
-httpx
-langgraph
-openai
-pydantic-settings
-redis
+fastapi==0.141.1
+chromadb==1.5.9
+httpx==0.28.1
+langgraph==1.2.11
+mcp==2.1.0
+openai==3.3.1
+pydantic-settings==2.15.0
+redis==8.1.0
 sqlite-vec==0.1.9
-uvicorn
+uvicorn==0.52.4

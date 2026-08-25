@@ -8,7 +8,7 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sentence_transformers import SentenceTransformer, util
 
 
@@ -98,12 +98,45 @@ class RecommendResult(BaseModel):
     score: float
 
 
+class EmbeddingRequest(BaseModel):
+    texts: List[str] = Field(min_length=1, max_length=128)
+    normalize: bool = True
+
+    @field_validator("texts")
+    @classmethod
+    def validate_texts(cls, texts: List[str]) -> List[str]:
+        cleaned = [text.strip() for text in texts]
+        if any(not text for text in cleaned):
+            raise ValueError("待向量化文本不能为空")
+        return cleaned
+
+
+class EmbeddingResponse(BaseModel):
+    model: str
+    dimensions: int
+    vectors: List[List[float]]
+
+
 @app.get("/health")
 def health():
     return {
         "status": "ok",
         "model": MODEL_NAME,
         "offline": True
+    }
+
+
+@app.post("/embeddings", response_model=EmbeddingResponse)
+def create_embeddings(req: EmbeddingRequest):
+    vectors = model.encode(
+        req.texts,
+        convert_to_numpy=True,
+        normalize_embeddings=req.normalize,
+    )
+    return {
+        "model": MODEL_NAME,
+        "dimensions": int(vectors.shape[1]),
+        "vectors": vectors.tolist(),
     }
 
 

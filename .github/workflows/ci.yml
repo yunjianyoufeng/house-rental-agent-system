@@ -53,6 +53,13 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Run offline Agent evaluations
         run: python -m app.evaluation.offline_evaluator
+      - name: Build and evaluate deterministic RAG index
+        env:
+          RAG_EMBEDDING_PROVIDER: hash
+          RAG_EMBEDDING_DIMENSIONS: "768"
+        run: |
+          python -m app.rag.ingest
+          python -m app.evaluation.rag_evaluator
 
   frontend:
     name: Vue build

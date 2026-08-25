@@ -30,8 +30,26 @@ class Settings(BaseSettings):
     appointment_pending_ttl_seconds: int = 900
     rag_database_path: str = "data/rag/knowledge.db"
     rag_knowledge_dir: str = "knowledge"
-    rag_embedding_dimensions: int = 384
+    rag_vector_store: str = "chroma"
+    rag_chroma_path: str = "data/rag/chroma"
+    rag_chroma_collection: str = "rental_knowledge"
+    rag_embedding_provider: str = "openai_compatible"
+    rag_embedding_base_url: str = (
+        "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
+    rag_embedding_api_key: SecretStr | None = None
+    rag_embedding_model: str = "text-embedding-v4"
+    rag_embedding_url: str = "http://127.0.0.1:9000/embeddings"
+    rag_embedding_timeout_seconds: float = Field(default=30.0, gt=0)
+    rag_embedding_dimensions: int = Field(default=768, gt=0)
+    rag_embedding_batch_size: int = Field(default=10, ge=1, le=100)
+    rag_embedding_max_retries: int = Field(default=2, ge=0, le=5)
+    rag_embedding_retry_base_seconds: float = Field(default=0.5, ge=0, le=10)
     rag_top_k: int = 3
+    rag_candidate_k: int = Field(default=10, ge=3, le=50)
+    rag_vector_weight: float = Field(default=0.7, ge=0, le=1)
+    rag_lexical_weight: float = Field(default=0.3, ge=0, le=1)
+    rag_rerank_weight: float = Field(default=0.15, ge=0, le=1)
     agent_host: str = "127.0.0.1"
     agent_port: int = 8001
     agent_tool_log_path: str = "logs/tool-calls.jsonl"

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "appointment-tenant-submit",
+    "query": "什么状态的房子可以预约看房？",
+    "expectedSource": "appointment-process.md",
+    "expectedSections": ["租客提交预约"]
+  },
+  {
+    "id": "appointment-duplicate",
+    "query": "已经有待处理预约还能重复提交吗？",
+    "expectedSource": "appointment-process.md",
+    "expectedSections": ["租客提交预约"]
+  },
+  {
+    "id": "appointment-confirm",
+    "query": "让智能助手预约是否需要再次确认？",
+    "expectedSource": "appointment-process.md",
+    "expectedSections": ["智能助手预约确认"]
+  },
+  {
+    "id": "application-review",
+    "query": "房东通过租房申请后系统会做什么？",
+    "expectedSource": "rental-application-contract-order.md",
+    "expectedSections": ["房东审核申请"]
+  },
+  {
+    "id": "contract-duration",
+    "query": "自动生成的租房合同默认签多久？",
+    "expectedSource": "rental-application-contract-order.md",
+    "expectedSections": ["自动生成合同"]
+  },
+  {
+    "id": "first-order-amount",
+    "query": "首笔租房订单需要支付多少钱？",
+    "expectedSource": "rental-application-contract-order.md",
+    "expectedSections": ["首笔订单与支付"]
+  },
+  {
+    "id": "repair-eligibility",
+    "query": "租客满足什么条件才能提交报修？",
+    "expectedSource": "repair-and-complaint.md",
+    "expectedSections": ["租客提交报修"]
+  },
+  {
+    "id": "repair-landlord-process",
+    "query": "房东能把报修更新成哪些状态？",
+    "expectedSource": "repair-and-complaint.md",
+    "expectedSections": ["房东处理报修"]
+  },
+  {
+    "id": "complaint-admin",
+    "query": "投诉由哪个角色负责处理？",
+    "expectedSource": "repair-and-complaint.md",
+    "expectedSections": ["管理员处理投诉"]
+  },
+  {
+    "id": "preference-save",
+    "query": "助手会自动保存我临时说的租房条件吗？",
+    "expectedSource": "agent-and-preference.md",
+    "expectedSections": ["长期租房偏好"]
+  },
+  {
+    "id": "preference-privacy",
+    "query": "长期偏好是否会保存密码和身份证号？",
+    "expectedSource": "agent-and-preference.md",
+    "expectedSections": ["会话与隐私边界"]
+  },
+  {
+    "id": "agent-capabilities",
+    "query": "智能租房助手可以做哪些事情？",
+    "expectedSource": "agent-and-preference.md",
+    "expectedSections": ["智能助手能做什么"]
+  }
+]
