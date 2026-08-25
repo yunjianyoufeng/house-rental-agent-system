@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     agent_tool_log_path: str = "logs/tool-calls.jsonl"
     agent_tool_log_max_bytes: int = 2 * 1024 * 1024
     agent_tool_log_backup_count: int = 3
+    langsmith_tracing: bool = False
+    langsmith_api_key: SecretStr | None = None
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    langsmith_project: str = "house-rental-agent-dev"
+    langsmith_hide_inputs: bool = True
+    langsmith_hide_outputs: bool = True
 
 
 @lru_cache

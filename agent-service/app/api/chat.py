@@ -9,6 +9,7 @@ from openai import OpenAIError
 from redis.exceptions import RedisError
 
 from app.agent.graph import agent_graph, initial_agent_state, stream_agent_events
+from app.core.langsmith_observability import agent_trace_context
 from app.core.logging_config import log_agent_request
 from app.core.observability import reset_trace_id, set_trace_id
 from app.schemas.chat import ChatRequest, ChatResponse
@@ -45,22 +46,48 @@ async def chat(
         try:
             validate_user_message(request.message)
             user_id, role_code = await resolve_authenticated_identity(authorization)
-            state = await initial_agent_state(
-                request.message,
-                request.conversation_id,
-                user_id,
-                role_code,
-                authorization,
-            )
-            result = await agent_graph.ainvoke(state)
-            await save_conversation_exchange(
-                request.conversation_id,
-                user_id,
-                request.message,
-                result["answer"],
-                authorization,
-                result.get("knowledge_sources", []),
-            )
+            with agent_trace_context(
+                trace_id=trace_id,
+                conversation_id=request.conversation_id,
+                role_code=role_code,
+                streaming=False,
+            ) as request_trace:
+                state = await initial_agent_state(
+                    request.message,
+                    request.conversation_id,
+                    user_id,
+                    role_code,
+                    authorization,
+                )
+                result = await agent_graph.ainvoke(
+                    state,
+                    config={
+                        "run_name": "rental-agent-graph",
+                        "tags": ["non-stream"],
+                        "metadata": {
+                            "traceId": trace_id,
+                            "conversationId": request.conversation_id,
+                            "roleCode": role_code,
+                        },
+                    },
+                )
+                await save_conversation_exchange(
+                    request.conversation_id,
+                    user_id,
+                    request.message,
+                    result["answer"],
+                    authorization,
+                    result.get("knowledge_sources", []),
+                )
+                if request_trace is not None:
+                    request_trace.end(
+                        outputs={
+                            "status": "success",
+                            "sourceCount": len(
+                                result.get("knowledge_sources", [])
+                            ),
+                        }
+                    )
         except DeepSeekConfigurationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -126,26 +153,42 @@ async def chat_stream(
         try:
             validate_user_message(request.message)
             user_id, role_code = await resolve_authenticated_identity(authorization)
-            state = await initial_agent_state(
-                request.message,
-                request.conversation_id,
-                user_id,
-                role_code,
-                authorization,
-            )
-            async for item in stream_agent_events(state):
-                event = item["event"]
-                if event == "done":
-                    await save_conversation_exchange(
-                        request.conversation_id,
-                        user_id,
-                        request.message,
-                        item["answer"],
-                        authorization,
-                        item.get("sources", []),
+            source_count = 0
+            with agent_trace_context(
+                trace_id=trace_id,
+                conversation_id=request.conversation_id,
+                role_code=role_code,
+                streaming=True,
+            ) as request_trace:
+                state = await initial_agent_state(
+                    request.message,
+                    request.conversation_id,
+                    user_id,
+                    role_code,
+                    authorization,
+                )
+                async for item in stream_agent_events(state):
+                    event = item["event"]
+                    if event == "done":
+                        sources = item.get("sources", [])
+                        source_count = len(sources)
+                        await save_conversation_exchange(
+                            request.conversation_id,
+                            user_id,
+                            request.message,
+                            item["answer"],
+                            authorization,
+                            sources,
+                        )
+                        request_status = "success"
+                    yield encode_sse_event(event, {**item, "traceId": trace_id})
+                if request_trace is not None:
+                    request_trace.end(
+                        outputs={
+                            "status": request_status,
+                            "sourceCount": source_count,
+                        }
                     )
-                    request_status = "success"
-                yield encode_sse_event(event, {**item, "traceId": trace_id})
         except DeepSeekConfigurationError as exc:
             yield encode_sse_event(
                 "error", {"message": str(exc), "traceId": trace_id}

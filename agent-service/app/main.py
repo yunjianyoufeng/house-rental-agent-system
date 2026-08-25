@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.chat import router as chat_router
 from app.core.config import get_settings
+from app.core.langsmith_observability import close_langsmith_client
 from app.core.logging_config import configure_tool_logging, shutdown_tool_logging
 from app.core.observability import metrics_snapshot
 from app.services.memory_service import close_redis_client
@@ -21,6 +22,7 @@ configure_tool_logging(
 async def lifespan(_: FastAPI):
     yield
     await close_redis_client()
+    close_langsmith_client()
     shutdown_tool_logging()
 
 

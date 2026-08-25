@@ -43,6 +43,10 @@ class LlmReliabilityTest(unittest.IsolatedAsyncioTestCase):
         with (
             patch("app.services.llm_service.get_settings", return_value=_settings()),
             patch("app.services.llm_service.AsyncOpenAI", return_value=client),
+            patch(
+                "app.services.llm_service.get_langsmith_client",
+                return_value=None,
+            ),
             patch("app.services.llm_service._is_retryable_error", return_value=True),
         ):
             result = await create_completion([{"role": "user", "content": "你好"}])
@@ -56,6 +60,10 @@ class LlmReliabilityTest(unittest.IsolatedAsyncioTestCase):
         with (
             patch("app.services.llm_service.get_settings", return_value=_settings()),
             patch("app.services.llm_service.AsyncOpenAI", return_value=client),
+            patch(
+                "app.services.llm_service.get_langsmith_client",
+                return_value=None,
+            ),
             patch("app.services.llm_service._is_retryable_error", return_value=False),
         ):
             with self.assertRaises(OpenAIError):
@@ -72,6 +80,10 @@ class LlmReliabilityTest(unittest.IsolatedAsyncioTestCase):
                 return_value=_settings(max_retries=2),
             ),
             patch("app.services.llm_service.AsyncOpenAI", return_value=client),
+            patch(
+                "app.services.llm_service.get_langsmith_client",
+                return_value=None,
+            ),
             patch("app.services.llm_service._is_retryable_error", return_value=True),
         ):
             with self.assertRaises(ModelServiceUnavailableError):
