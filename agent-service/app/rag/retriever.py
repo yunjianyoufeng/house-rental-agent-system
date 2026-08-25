@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import get_settings
+from app.core.langsmith_observability import child_trace
 from app.rag.embedding import EmbeddingServiceError, embed_texts
 from app.rag.vector_store import (
     KnowledgeBaseNotReadyError,
@@ -73,7 +74,7 @@ def _fuse_results(
     )
 
 
-def search_knowledge(query: str, top_k: int | None = None) -> list[dict[str, Any]]:
+def _search_knowledge(query: str, top_k: int | None = None) -> list[dict[str, Any]]:
     settings = get_settings()
     database_path = Path(settings.rag_database_path)
     if not database_path.is_file():
@@ -143,3 +144,25 @@ def search_knowledge(query: str, top_k: int | None = None) -> list[dict[str, Any
         }
         for item in fused[:result_count]
     ]
+
+
+def search_knowledge(query: str, top_k: int | None = None) -> list[dict[str, Any]]:
+    """检索知识库，并仅向观测平台记录非敏感检索摘要。"""
+
+    with child_trace(
+        "rental-knowledge-retrieval",
+        "retriever",
+        inputs={"queryLength": len(query), "topK": top_k},
+    ) as retrieval_trace:
+        results = _search_knowledge(query, top_k)
+        if retrieval_trace is not None:
+            retrieval_trace.end(
+                outputs={
+                    "itemCount": len(results),
+                    "sources": [item["source"] for item in results],
+                    "retrievalModes": sorted(
+                        {item["retrievalMode"] for item in results}
+                    ),
+                }
+            )
+        return results

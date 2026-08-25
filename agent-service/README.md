@@ -35,6 +35,24 @@ RAG_EMBEDDING_API_KEY=你的百炼密钥
 默认模型为 `deepseek-v4-flash`。估算成本使用 `.env.example` 中的人民币单价，
 价格变化时只需调整环境变量，不需要修改代码。
 
+## LangSmith 链路观测
+
+项目默认关闭 LangSmith。启用前先在 LangSmith 控制台创建 API Key，然后在
+`agent-service/.env` 中填写：
+
+```text
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=你的LangSmith密钥
+LANGSMITH_PROJECT=house-rental-agent-dev
+LANGSMITH_HIDE_INPUTS=true
+LANGSMITH_HIDE_OUTPUTS=true
+```
+
+重启 Agent 服务后，一次聊天请求会形成请求、LangGraph、DeepSeek、工具调用和
+RAG 检索链路。默认不上传模型输入和输出；工具只记录参数名和结果摘要，RAG 只
+记录查询长度、命中数量与知识来源。排查结束后可将 `LANGSMITH_TRACING` 改回
+`false`。`LANGSMITH_API_KEY` 只写入本地 `.env` 或部署环境变量，不要提交到 Git。
+
 ## 安装与启动
 
 ```cmd

@@ -11,8 +11,10 @@ from openai import (
     OpenAIError,
     RateLimitError,
 )
+from langsmith.wrappers import wrap_openai
 
 from app.core.config import get_settings
+from app.core.langsmith_observability import get_langsmith_client
 from app.core.logging_config import log_model_call
 
 
@@ -61,12 +63,20 @@ def _create_client() -> AsyncOpenAI:
         raise DeepSeekConfigurationError(
             "尚未配置 DEEPSEEK_API_KEY，当前不能调用模型服务。"
         )
-    return AsyncOpenAI(
+    client = AsyncOpenAI(
         api_key=settings.deepseek_api_key.get_secret_value(),
         base_url=settings.deepseek_base_url,
         timeout=settings.deepseek_timeout_seconds,
         max_retries=0,
     )
+    langsmith_client = get_langsmith_client()
+    if langsmith_client is not None:
+        return wrap_openai(
+            client,
+            tracing_extra={"client": langsmith_client},
+            chat_name="DeepSeekChat",
+        )
+    return client
 
 
 def _usage_value(usage: Any, name: str) -> int:

@@ -7,6 +7,7 @@ from typing import Any, Literal
 from langgraph.graph import END, START, StateGraph
 
 from app.agent.state import AgentState, KnowledgeSource, PendingToolCall
+from app.core.langsmith_observability import child_trace, summarize_trace_result
 from app.core.logging_config import log_tool_call
 from app.services.backend_client import BackendServiceError
 from app.services.llm_service import (
@@ -108,19 +109,27 @@ async def tool_node(state: AgentState) -> dict:
         error_message = None
         try:
             arguments = json.loads(tool_call["arguments"] or "{}")
-            result = await execute_registered_tool(
+            with child_trace(
                 tool_call["name"],
-                arguments,
-                ToolExecutionContext(
-                    conversation_id=state["conversation_id"],
-                    user_id=state["user_id"],
-                    role_code=state["role_code"],
-                    authorization=state["authorization"],
-                    appointment_pending_at_start=state[
-                        "appointment_pending_at_start"
-                    ],
-                ),
-            )
+                "tool",
+                inputs={"argumentNames": sorted(arguments)},
+                metadata={"roleCode": state["role_code"]},
+            ) as tool_trace:
+                result = await execute_registered_tool(
+                    tool_call["name"],
+                    arguments,
+                    ToolExecutionContext(
+                        conversation_id=state["conversation_id"],
+                        user_id=state["user_id"],
+                        role_code=state["role_code"],
+                        authorization=state["authorization"],
+                        appointment_pending_at_start=state[
+                            "appointment_pending_at_start"
+                        ],
+                    ),
+                )
+                if tool_trace is not None:
+                    tool_trace.end(outputs=summarize_trace_result(result))
             spec = get_tool_spec(tool_call["name"])
             if spec is not None and spec.category == "knowledge":
                 knowledge_sources = merge_knowledge_sources(

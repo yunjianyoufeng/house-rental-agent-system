@@ -90,6 +90,12 @@ services:
       AGENT_HOST: 0.0.0.0
       AGENT_PORT: 8001
       AGENT_TOOL_LOG_PATH: /app/logs/agent-events.jsonl
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-house-rental-agent-docker}
+      LANGSMITH_HIDE_INPUTS: ${LANGSMITH_HIDE_INPUTS:-true}
+      LANGSMITH_HIDE_OUTPUTS: ${LANGSMITH_HIDE_OUTPUTS:-true}
       TZ: Asia/Shanghai
     ports:
       - "${AGENT_HOST_PORT:-8001}:8001"
