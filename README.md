@@ -12,7 +12,7 @@
 - 智能决策：自然语言查房、规则推荐、TF-IDF 推荐、房源对比、预算测算
 - Agent 办理：LangGraph Tool Calling 和看房预约二次确认
 - 记忆系统：Redis 短期会话状态，MySQL 结构化长期租房偏好
-- 知识问答：`sqlite-vec` 本地向量检索，覆盖平台办理流程
+- 知识问答：云端 Embedding + Chroma + FTS5 混合检索，`sqlite-vec` 自动降级
 - 企业可靠性：模型超时重试、降级提示、工具权限边界和敏感信息拦截
 - 可观测性：请求级 Trace、模型 Token/成本、工具耗时和轻量指标接口
 - 质量门禁：自动化测试、离线 Agent 评测和 GitHub Actions CI
@@ -116,7 +116,7 @@ flowchart TD
     D --> E[LangGraph Agent]
     E --> F{是否调用工具}
     F -->|真实房源 / 个人业务| G[调用 Spring Boot Tool API]
-    F -->|平台规则| H[sqlite-vec 检索知识库]
+    F -->|平台规则| H[Chroma + FTS5 混合检索]
     F -->|预算测算| I[本地确定性计算]
     G --> J[工具结果回到 Agent]
     H --> J
@@ -143,9 +143,9 @@ LangGraph Agent 判断为知识问答
         ↓
 调用 search_rental_knowledge
         ↓
-轻量字符特征向量化
+云端 text-embedding-v4 向量化
         ↓
-sqlite-vec 检索 TopK 知识片段
+Chroma 与 FTS5 召回，sqlite-vec 故障降级
         ↓
 DeepSeek 依据检索内容组织回答
 ```
@@ -181,7 +181,7 @@ Spring Boot + MyBatis-Plus
                                 |
                     +-----------+-----------+
                     |           |           |
-                 DeepSeek    业务 Tools   sqlite-vec RAG
+                 DeepSeek    业务 Tools   混合检索 RAG
 ```
 
 职责划分：
@@ -197,7 +197,7 @@ Spring Boot + MyBatis-Plus
 house-rental-server/      Spring Boot 业务后端
 house-rental-web/         Vue 3 前端
 agent-service/            FastAPI + LangGraph 智能助手
-ai-recommend-service/     旧版本地语义推荐服务（低内存模式不要求启动）
+ai-recommend-service/     旧版本地语义推荐服务（legacy，不参与当前 Agent RAG）
 house_rental.sql          MySQL 初始化及演示数据
 ```
 
@@ -209,7 +209,8 @@ house_rental.sql          MySQL 初始化及演示数据
 | 后端 | Java 17、Spring Boot 3、MyBatis-Plus、Spring Security |
 | Agent | Python 3.11、FastAPI、LangGraph、OpenAI SDK |
 | 大模型 | DeepSeek API |
-| 数据 | MySQL 8、Redis、SQLite + sqlite-vec |
+| 数据 | MySQL 8、Redis、Chroma、SQLite FTS5 + sqlite-vec |
+| Embedding | 百炼 `text-embedding-v4` OpenAI 兼容 API |
 | 推荐 | 规则模型、TF-IDF；旧版 EMBEDDING 服务可选 |
 
 ## 环境要求
@@ -221,7 +222,7 @@ house_rental.sql          MySQL 初始化及演示数据
 - Python 3.11
 - Maven（可使用 IntelliJ IDEA 内置 Maven）
 
-本项目的低内存开发模式不启动旧版 `ai-recommend-service`，也不加载 `sentence-transformers` 本地模型。
+当前 Agent RAG 不启动旧版 `ai-recommend-service`，也不要求下载 `sentence-transformers` 本地模型。完整语义检索需要用户自己的云端 Embedding API Key。
 
 ## 首次配置
 
@@ -263,13 +264,16 @@ CREATE DATABASE house_rental
 copy .env.example .env
 ```
 
-打开 `.env`，至少填写：
+打开 `.env`，至少填写两个相互独立的 Key：
 
 ```text
 DEEPSEEK_API_KEY=你的DeepSeek密钥
+RAG_EMBEDDING_API_KEY=你的百炼密钥
 ```
 
 `.env` 已被忽略，不会上传 GitHub。
+
+默认使用百炼公共兼容地址；需要更高稳定性时，可按[官方 Base URL 文档](https://help.aliyun.com/zh/model-studio/base-url)替换为业务空间专属地址。Embedding 接口格式见[百炼 OpenAI 兼容文档](https://help.aliyun.com/zh/model-studio/embedding-interfaces-compatible-with-openai/)。
 
 ### 4. 安装依赖
 
@@ -294,8 +298,9 @@ python -m pip install -r requirements.txt
 1. MySQL
 2. Docker 中的 Redis 容器
 3. Spring Boot 后端
-4. Python Agent
-5. Vue 前端
+4. 首次启动或知识变化后构建 RAG 索引
+5. Python Agent
+6. Vue 前端
 
 ### Spring Boot
 
@@ -304,8 +309,9 @@ python -m pip install -r requirements.txt
 ### Agent
 
 ```cmd
-cd /d D:\javaprogramsssss\agent-service
+cd agent-service
 .venv\Scripts\activate
+python -m app.rag.ingest
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
 
@@ -316,13 +322,13 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 ### Vue
 
 ```cmd
-cd /d D:\javaprogramsssss\house-rental-web
+cd house-rental-web
 npm run dev
 ```
 
 访问：`http://127.0.0.1:5173`
 
-README 中的绝对路径是本项目当前 Windows 开发示例；克隆到其他目录后，请替换为自己的项目路径。
+所有命令均以仓库根目录为起点，不依赖作者电脑上的绝对路径。
 
 ## RAG 知识库
 
@@ -339,7 +345,11 @@ README 中的绝对路径是本项目当前 Windows 开发示例；克隆到其�
 python -m app.rag.ingest
 ```
 
-该命令会生成 `agent-service/data/rag/knowledge.db`。索引是生成文件，不提交到 Git。当前实现采用轻量字符特征向量和 `sqlite-vec` 检索，不加载神经网络 Embedding 模型，适合内存较小的电脑。
+该命令会调用配置的 `text-embedding-v4`，生成 `agent-service/data/rag/knowledge.db` 和 `agent-service/data/rag/chroma/`。索引是生成文件，不提交到 Git。默认使用 Chroma + SQLite FTS5 混合检索，Chroma 不可用时降级到同步构建的 `sqlite-vec`。
+
+真实索引构建和 RAG 评测需要访问云端 Embedding，并可能产生少量 API 费用；知识文档、Embedding 模型或向量维度未变化时，无需重复构建。仅验证工程链路可使用下方 CI 的 `hash` 模式，该模式不访问云端。
+
+GitHub Actions 不配置真实 API Key，而是使用确定性的 `RAG_EMBEDDING_PROVIDER=hash` 验证入库、Chroma、FTS5、降级和评测流程。该模式仅用于 CI，不代表生产语义质量。
 
 ## 智能助手工具
 
@@ -382,9 +392,12 @@ npm run build
 ```cmd
 cd agent-service
 .venv\Scripts\python.exe -m pip check
-.venv\Scripts\python.exe -m app.rag.ingest
 .venv\Scripts\python.exe -m unittest discover -s tests -v
 .venv\Scripts\python.exe -m app.evaluation.offline_evaluator
+set RAG_EMBEDDING_PROVIDER=hash
+.venv\Scripts\python.exe -m app.rag.ingest
+.venv\Scripts\python.exe -m app.evaluation.rag_evaluator
+set RAG_EMBEDDING_PROVIDER=
 ```
 
 GitHub Actions 会在每次推送和 Pull Request 时执行四类检查：Docker Compose 配置校验、Spring Boot 测试、Python Agent 测试与离线评测、Vue 生产构建。
@@ -414,4 +427,4 @@ GitHub Actions 会在每次推送和 Pull Request 时执行四类检查：Docker
 
 ## 旧版语义推荐说明
 
-`ai-recommend-service` 是项目早期的本地神经网络 Embedding 服务，运行时会占用较多内存。当前低内存 Agent 开发流程不要求启动它；Spring Boot 中的规则推荐、TF-IDF 推荐以及新 Agent 功能仍可独立运行。旧版部署资料保留用于历史参考，当前操作以本 README 和 `agent-service/README.md` 为准。
+`ai-recommend-service` 是项目早期的本地神经网络 Embedding 服务，运行时会占用较多内存。当前 Agent RAG 已改用云端 `text-embedding-v4`，不再依赖 9000 端口或本地模型。旧服务仅保留用于历史 EMBEDDING 推荐演示；当前操作以本 README 和 `agent-service/README.md` 为准。

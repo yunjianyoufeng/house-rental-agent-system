@@ -102,7 +102,7 @@ class StreamingAgentTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.agent.graph.execute_knowledge_tool",
+                "app.tools.registry.execute_knowledge_tool",
                 new=AsyncMock(return_value=knowledge_result),
             ),
             patch(
@@ -141,7 +141,7 @@ class StreamingAgentTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "app.agent.graph.execute_knowledge_tool",
+                "app.tools.registry.execute_knowledge_tool",
                 new=AsyncMock(return_value=knowledge_result),
             ),
             patch(

@@ -66,7 +66,7 @@ class AgentSecurityTest(unittest.IsolatedAsyncioTestCase):
         }
 
         with patch(
-            "app.agent.graph.execute_preference_tool",
+            "app.tools.registry.execute_preference_tool",
             new=AsyncMock(),
         ) as execute_preference:
             result = await tool_node(state)

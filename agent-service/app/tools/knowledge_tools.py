@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any
 
-from app.rag.vector_store import search_knowledge
+from app.rag.retriever import search_knowledge
 
 
 KNOWLEDGE_TOOL_DEFINITIONS = [

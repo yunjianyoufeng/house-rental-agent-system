@@ -17,54 +17,17 @@ from app.services.llm_service import (
 )
 from app.services.memory_service import load_conversation_messages
 from app.rag.vector_store import KnowledgeBaseNotReadyError
-from app.tools.appointment_tools import (
-    APPOINTMENT_TOOL_DEFINITIONS,
-    execute_appointment_tool,
-    get_pending_appointment,
-)
-from app.tools.decision_tools import DECISION_TOOL_DEFINITIONS, execute_decision_tool
-from app.tools.house_tools import HOUSE_TOOL_DEFINITIONS, execute_house_tool
-from app.tools.knowledge_tools import (
-    KNOWLEDGE_TOOL_DEFINITIONS,
-    execute_knowledge_tool,
-)
-from app.tools.preference_tools import (
-    PREFERENCE_TOOL_DEFINITIONS,
-    execute_preference_tool,
-    load_rental_preference,
-)
-from app.tools.personal_tools import (
-    PERSONAL_TOOL_DEFINITIONS,
-    execute_personal_tool,
+from app.tools.appointment_tools import get_pending_appointment
+from app.tools.preference_tools import load_rental_preference
+from app.tools.registry import (
+    ToolExecutionContext,
+    available_tool_definitions,
+    execute_registered_tool,
+    get_tool_spec,
 )
 
 
 MAX_TOOL_ROUNDS = 3
-BASE_TOOL_DEFINITIONS = (
-    HOUSE_TOOL_DEFINITIONS
-    + DECISION_TOOL_DEFINITIONS
-    + KNOWLEDGE_TOOL_DEFINITIONS
-)
-TENANT_TOOL_DEFINITIONS = (
-    APPOINTMENT_TOOL_DEFINITIONS
-    + PREFERENCE_TOOL_DEFINITIONS
-    + PERSONAL_TOOL_DEFINITIONS
-)
-PERSONAL_TOOL_NAMES = {
-    tool["function"]["name"] for tool in PERSONAL_TOOL_DEFINITIONS
-}
-HOUSE_TOOL_NAMES = {
-    tool["function"]["name"] for tool in HOUSE_TOOL_DEFINITIONS
-}
-APPOINTMENT_TOOL_NAMES = {
-    tool["function"]["name"] for tool in APPOINTMENT_TOOL_DEFINITIONS
-}
-PREFERENCE_TOOL_NAMES = {
-    tool["function"]["name"] for tool in PREFERENCE_TOOL_DEFINITIONS
-}
-KNOWLEDGE_TOOL_NAMES = {
-    tool["function"]["name"] for tool in KNOWLEDGE_TOOL_DEFINITIONS
-}
 KNOWLEDGE_DOMAIN_KEYWORDS = (
     "看房预约",
     "租房申请",
@@ -89,31 +52,6 @@ KNOWLEDGE_QUESTION_KEYWORDS = (
     "办理",
     "操作",
 )
-
-
-def available_tool_definitions(role_code: str | None) -> list[dict[str, Any]]:
-    tools = list(BASE_TOOL_DEFINITIONS)
-    if role_code == "TENANT":
-        tools.extend(TENANT_TOOL_DEFINITIONS)
-    return tools
-
-
-def validate_tool_access(
-    tool_name: str,
-    role_code: str | None,
-    authorization: str | None,
-) -> None:
-    allowed_names = {
-        tool["function"]["name"]
-        for tool in available_tool_definitions(role_code)
-    }
-    if tool_name not in allowed_names:
-        raise ValueError("当前登录角色无权调用该工具。")
-    if tool_name in {
-        tool["function"]["name"] for tool in TENANT_TOOL_DEFINITIONS
-    } and not authorization:
-        raise ValueError("登录状态已失效，无法执行租客专属操作。")
-
 
 async def agent_node(state: AgentState) -> dict:
     tools = (
@@ -169,46 +107,25 @@ async def tool_node(state: AgentState) -> dict:
         status = "error"
         error_message = None
         try:
-            validate_tool_access(
-                tool_call["name"],
-                state["role_code"],
-                state["authorization"],
-            )
             arguments = json.loads(tool_call["arguments"] or "{}")
-            if tool_call["name"] in HOUSE_TOOL_NAMES:
-                result = await execute_house_tool(tool_call["name"], arguments)
-            elif tool_call["name"] in APPOINTMENT_TOOL_NAMES:
-                result = await execute_appointment_tool(
-                    tool_call["name"],
-                    arguments,
-                    state["conversation_id"],
-                    state["user_id"],
-                    state["authorization"],
-                    state["appointment_pending_at_start"],
-                )
-            elif tool_call["name"] in PREFERENCE_TOOL_NAMES:
-                result = await execute_preference_tool(
-                    tool_call["name"],
-                    arguments,
-                    state["authorization"],
-                )
-            elif tool_call["name"] in KNOWLEDGE_TOOL_NAMES:
-                result = await execute_knowledge_tool(tool_call["name"], arguments)
+            result = await execute_registered_tool(
+                tool_call["name"],
+                arguments,
+                ToolExecutionContext(
+                    conversation_id=state["conversation_id"],
+                    user_id=state["user_id"],
+                    role_code=state["role_code"],
+                    authorization=state["authorization"],
+                    appointment_pending_at_start=state[
+                        "appointment_pending_at_start"
+                    ],
+                ),
+            )
+            spec = get_tool_spec(tool_call["name"])
+            if spec is not None and spec.category == "knowledge":
                 knowledge_sources = merge_knowledge_sources(
                     knowledge_sources,
                     result.get("results", []),
-                )
-            elif tool_call["name"] in PERSONAL_TOOL_NAMES:
-                result = await execute_personal_tool(
-                    tool_call["name"],
-                    state["authorization"],
-                    state["role_code"],
-                )
-            else:
-                result = await execute_decision_tool(
-                    tool_call["name"],
-                    arguments,
-                    state["authorization"],
                 )
             content = json.dumps(result, ensure_ascii=False)
             status = "success"

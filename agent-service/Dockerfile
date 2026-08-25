@@ -9,7 +9,6 @@ COPY --chown=agent:agent app ./app
 COPY --chown=agent:agent knowledge ./knowledge
 COPY --chown=agent:agent evals ./evals
 RUN mkdir -p data/rag logs \
-    && python -m app.rag.ingest \
     && chown -R agent:agent /app
 USER agent
 EXPOSE 8001

@@ -64,6 +64,7 @@ services:
     mem_limit: 512m
 
   agent:
+    image: house-rental-agent:local
     build:
       context: ./agent-service
     restart: unless-stopped
@@ -72,11 +73,20 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+      rag-init:
+        condition: service_completed_successfully
     environment:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?请在 docker.env 中配置 DeepSeek API Key}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
       SPRING_BACKEND_URL: http://backend:8080
       REDIS_URL: redis://redis:6379/0
+      RAG_EMBEDDING_PROVIDER: openai_compatible
+      RAG_EMBEDDING_BASE_URL: ${RAG_EMBEDDING_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      RAG_EMBEDDING_API_KEY: ${RAG_EMBEDDING_API_KEY:?请在 docker.env 中配置云端 Embedding API Key}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-text-embedding-v4}
+      RAG_EMBEDDING_DIMENSIONS: ${RAG_EMBEDDING_DIMENSIONS:-768}
+      RAG_DATABASE_PATH: /app/data/rag/knowledge.db
+      RAG_CHROMA_PATH: /app/data/rag/chroma
       AGENT_HOST: 0.0.0.0
       AGENT_PORT: 8001
       AGENT_TOOL_LOG_PATH: /app/logs/agent-events.jsonl
@@ -85,6 +95,26 @@ services:
       - "${AGENT_HOST_PORT:-8001}:8001"
     volumes:
       - agent-logs:/app/logs
+      - agent-rag:/app/data/rag
+    mem_limit: 384m
+
+  rag-init:
+    image: house-rental-agent:local
+    build:
+      context: ./agent-service
+    restart: "no"
+    environment:
+      RAG_EMBEDDING_PROVIDER: openai_compatible
+      RAG_EMBEDDING_BASE_URL: ${RAG_EMBEDDING_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      RAG_EMBEDDING_API_KEY: ${RAG_EMBEDDING_API_KEY:?请在 docker.env 中配置云端 Embedding API Key}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-text-embedding-v4}
+      RAG_EMBEDDING_DIMENSIONS: ${RAG_EMBEDDING_DIMENSIONS:-768}
+      RAG_DATABASE_PATH: /app/data/rag/knowledge.db
+      RAG_CHROMA_PATH: /app/data/rag/chroma
+      TZ: Asia/Shanghai
+    command: ["python", "-m", "app.rag.ingest"]
+    volumes:
+      - agent-rag:/app/data/rag
     mem_limit: 384m
 
   web:
@@ -99,7 +129,7 @@ services:
     mem_limit: 96m
 
   embedding:
-    profiles: ["embedding"]
+    profiles: ["legacy-embedding"]
     build:
       context: ./ai-recommend-service
     restart: unless-stopped
@@ -115,3 +145,4 @@ volumes:
   redis-data:
   uploads-data:
   agent-logs:
+  agent-rag:
