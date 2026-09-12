@@ -38,6 +38,8 @@ class ToolExecutionContext:
     role_code: str | None = None
     authorization: str | None = None
     appointment_pending_at_start: bool = False
+    appointment_confirmation_version: str | None = None
+    appointment_explicit_confirmation: bool = False
 
 
 def _build_specs(
@@ -151,6 +153,8 @@ async def execute_registered_tool(
             context.user_id,
             context.authorization,
             context.appointment_pending_at_start,
+            context.appointment_confirmation_version,
+            context.appointment_explicit_confirmation,
         )
     if spec.category == "preference":
         return await execute_preference_tool(

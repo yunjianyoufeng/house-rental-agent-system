@@ -1,4 +1,5 @@
 import request from './request'
+import { csrfHeaders } from './csrf'
 
 export function agentChatApi(data) {
   return request({
@@ -30,17 +31,15 @@ export function deleteAgentHistoryApi(conversationId) {
 }
 
 export async function agentChatStreamApi(data, handlers = {}) {
-  const userInfo = JSON.parse(localStorage.getItem('userInfo') || 'null')
   const headers = {
     Accept: 'text/event-stream',
     'Content-Type': 'application/json',
-  }
-  if (userInfo?.token) {
-    headers.Authorization = `Bearer ${userInfo.token}`
+    ...await csrfHeaders(),
   }
 
   const response = await fetch('/api/agent/chat/stream', {
     method: 'POST',
+    credentials: 'same-origin',
     headers,
     body: JSON.stringify(data),
   })

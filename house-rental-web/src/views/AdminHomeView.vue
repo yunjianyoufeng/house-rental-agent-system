@@ -866,7 +866,7 @@ const openFile = async (contractId) => {
     const fileUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = fileUrl
-    link.target = '_blank'
+    link.download = blob.name || `合同附件-${contractId}`
     link.rel = 'noopener noreferrer'
     link.click()
     window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60000)

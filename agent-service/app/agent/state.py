@@ -26,4 +26,6 @@ class AgentState(TypedDict):
     role_code: str | None
     authorization: str | None
     appointment_pending_at_start: bool
+    appointment_confirmation_version: str | None
+    appointment_explicit_confirmation: bool
     knowledge_sources: list[KnowledgeSource]

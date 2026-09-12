@@ -1,6 +1,9 @@
 package com.rental.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -9,16 +12,19 @@ import java.math.BigDecimal;
 public class HouseRecommendDTO {
 
     @NotBlank(message = "请输入租房需求")
+    @Size(max = 2000, message = "租房需求不能超过2000字")
     private String query;
 
     /**
      * 城市，可选
      */
+    @Size(max = 50)
     private String city;
 
     /**
      * 区域，可选
      */
+    @Size(max = 50)
     private String area;
 
     /**
@@ -34,6 +40,7 @@ public class HouseRecommendDTO {
     /**
      * 户型，可选
      */
+    @Size(max = 50)
     private String houseType;
 
 
@@ -48,11 +55,14 @@ public class HouseRecommendDTO {
      * RULE：规则推荐
      * 后续可以扩展 TFIDF、EMBEDDING
      */
+    @Size(max = 20)
     private String modelType = "RULE";
 
     /**
      * 返回推荐数量
      */
+    @Min(1)
+    @Max(20)
     private Integer topK = 5;
 
 }

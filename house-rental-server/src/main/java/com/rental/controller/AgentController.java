@@ -3,6 +3,7 @@ package com.rental.controller;
 import com.rental.client.AgentClient;
 import com.rental.common.RequestUserUtil;
 import com.rental.common.Result;
+import com.rental.common.SessionTokenUtil;
 import com.rental.dto.AgentChatRequestDTO;
 import com.rental.dto.AgentChatResponseDTO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,7 +34,7 @@ public class AgentController {
         RequestUserUtil.checkTenantRole(request);
         dto.setUserId(RequestUserUtil.getCurrentUserId(request));
         dto.setRoleCode(RequestUserUtil.getCurrentRole(request));
-        return Result.success(agentClient.chat(dto, request.getHeader("Authorization")));
+        return Result.success(agentClient.chat(dto, SessionTokenUtil.authorization(request)));
     }
 
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -43,7 +44,7 @@ public class AgentController {
         RequestUserUtil.checkTenantRole(request);
         dto.setUserId(RequestUserUtil.getCurrentUserId(request));
         dto.setRoleCode(RequestUserUtil.getCurrentRole(request));
-        String authorization = request.getHeader("Authorization");
+        String authorization = SessionTokenUtil.authorization(request);
         StreamingResponseBody responseBody = outputStream ->
                 agentClient.stream(dto, authorization, outputStream);
 

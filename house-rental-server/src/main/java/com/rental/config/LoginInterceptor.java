@@ -2,12 +2,15 @@ package com.rental.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rental.common.Result;
+import com.rental.common.SessionTokenUtil;
 import com.rental.entity.SysUser;
 import com.rental.service.TokenService;
 import com.rental.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -26,8 +29,12 @@ public class LoginInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        String authorization = request.getHeader("Authorization");
-        String token = extractToken(authorization);
+        String token = SessionTokenUtil.extract(request);
+
+        // 推荐允许游客访问；携带凭证时仍校验身份，不能信任前端传来的角色。
+        if (token == null && "/recommend/house".equals(request.getServletPath())) {
+            return true;
+        }
 
         if (token == null) {
             writeUnauthorized(response, "未登录或登录已过期");
@@ -58,17 +65,9 @@ public class LoginInterceptor implements HandlerInterceptor {
         return true;
     }
 
-    private String extractToken(String authorization) {
-        if (authorization == null || authorization.isBlank()) {
-            return null;
-        }
-        if (authorization.startsWith("Bearer ")) {
-            return authorization.substring(7);
-        }
-        return authorization;
-    }
-
     private void writeUnauthorized(HttpServletResponse response, String message) throws Exception {
+        response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from(SessionTokenUtil.COOKIE_NAME, "")
+                .path("/").httpOnly(true).sameSite("Strict").maxAge(0).build().toString());
         response.setContentType("application/json;charset=UTF-8");
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.getWriter().write(objectMapper.writeValueAsString(Result.unauthorized(message)));

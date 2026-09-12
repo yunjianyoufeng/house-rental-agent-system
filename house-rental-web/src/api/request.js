@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { csrfHeaders } from './csrf'
 
 const request = axios.create({
   baseURL: '/api',
@@ -14,11 +15,9 @@ function clearLoginAndRedirect() {
 }
 
 request.interceptors.request.use(
-  (config) => {
-    const userInfo = JSON.parse(localStorage.getItem('userInfo') || 'null')
-
-    if (userInfo?.token) {
-      config.headers.Authorization = `Bearer ${userInfo.token}`
+  async (config) => {
+    if (!['get', 'head', 'options'].includes((config.method || 'get').toLowerCase())) {
+      Object.assign(config.headers, await csrfHeaders())
     }
 
     return config
@@ -45,7 +44,8 @@ request.interceptors.response.use(
           return Promise.reject(res)
         })
       }
-      return response.data
+      const filename = response.headers['content-disposition']?.match(/filename="([a-fA-F0-9]+\.[a-z]+)"/)?.[1]
+      return filename ? new File([response.data], filename, { type: response.data.type }) : response.data
     }
 
     const res = response.data

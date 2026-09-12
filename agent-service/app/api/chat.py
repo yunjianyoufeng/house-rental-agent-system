@@ -19,6 +19,7 @@ from app.services.llm_service import (
 )
 from app.services.backend_client import BackendServiceError
 from app.services.identity_service import resolve_authenticated_identity
+from app.services.request_limit_service import check_chat_quota
 from app.services.memory_service import save_conversation_exchange
 from app.services.safety_service import UnsafeInputError, validate_user_message
 
@@ -46,6 +47,7 @@ async def chat(
         try:
             validate_user_message(request.message)
             user_id, role_code = await resolve_authenticated_identity(authorization)
+            await check_chat_quota(user_id)
             with agent_trace_context(
                 trace_id=trace_id,
                 conversation_id=request.conversation_id,
@@ -144,15 +146,24 @@ async def chat_stream(
     authorization: str | None = Header(default=None),
 ) -> StreamingResponse:
     trace_id = uuid4().hex
+    # 在响应头发出前完成认证和限额，让调用方收到真实的 401/429，而不是 HTTP 200。
+    try:
+        validate_user_message(request.message)
+        authenticated_user_id, role_code = await resolve_authenticated_identity(authorization)
+        await check_chat_quota(authenticated_user_id)
+    except UnsafeInputError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (BackendServiceError, ValueError) as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except RedisError as exc:
+        raise HTTPException(status_code=503, detail="会话服务暂不可用。") from exc
 
     async def generate_events() -> AsyncIterator[str]:
         trace_token = set_trace_id(trace_id)
         started_at = perf_counter()
         request_status = "error"
-        user_id = None
+        user_id = authenticated_user_id
         try:
-            validate_user_message(request.message)
-            user_id, role_code = await resolve_authenticated_identity(authorization)
             source_count = 0
             with agent_trace_context(
                 trace_id=trace_id,

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.payment")
 public class PaymentProperties {
 
-    private boolean demoMode = true;
+    private boolean demoMode = false;
 
     private String appName = "house-rental-system";
 }

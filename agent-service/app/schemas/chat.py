@@ -7,7 +7,7 @@ class ChatRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     message: str = Field(min_length=1, max_length=2000)
-    conversation_id: str | None = Field(default=None, alias="conversationId")
+    conversation_id: str | None = Field(default=None, alias="conversationId", max_length=128)
     user_id: int | None = Field(default=None, alias="userId", gt=0)
     role_code: Literal["TENANT", "LANDLORD", "ADMIN"] | None = Field(
         default=None,

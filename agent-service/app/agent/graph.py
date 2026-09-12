@@ -18,7 +18,7 @@ from app.services.llm_service import (
 )
 from app.services.memory_service import load_conversation_messages
 from app.rag.vector_store import KnowledgeBaseNotReadyError
-from app.tools.appointment_tools import get_pending_appointment
+from app.tools.appointment_tools import get_pending_appointment, is_explicit_confirmation
 from app.tools.preference_tools import load_rental_preference
 from app.tools.registry import (
     ToolExecutionContext,
@@ -126,6 +126,8 @@ async def tool_node(state: AgentState) -> dict:
                         appointment_pending_at_start=state[
                             "appointment_pending_at_start"
                         ],
+                        appointment_confirmation_version=state.get("appointment_confirmation_version"),
+                        appointment_explicit_confirmation=state.get("appointment_explicit_confirmation", False),
                     ),
                 )
                 if tool_trace is not None:
@@ -411,5 +413,7 @@ async def initial_agent_state(
         "role_code": role_code,
         "authorization": authorization,
         "appointment_pending_at_start": pending_appointment is not None,
+        "appointment_confirmation_version": (pending_appointment or {}).get("confirmationVersion"),
+        "appointment_explicit_confirmation": is_explicit_confirmation(message),
         "knowledge_sources": [],
     }

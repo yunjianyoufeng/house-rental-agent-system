@@ -60,7 +60,9 @@ public class RecommendServiceImpl implements RecommendService {
         LambdaQueryWrapper<House> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(House::getStatus, 1)
                 .eq(House::getAuditStatus, 1)
-                .orderByDesc(House::getId);
+                .orderByDesc(House::getId)
+                // 先限制候选集再进行向量/规则计算，与语义服务的输入上限保持一致。
+                .last("LIMIT 200");
 
         if (StringUtils.hasText(effectiveDto.getCity())) {
             wrapper.eq(House::getCity, effectiveDto.getCity().trim());

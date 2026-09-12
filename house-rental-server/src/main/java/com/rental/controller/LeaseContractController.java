@@ -150,7 +150,8 @@ public class LeaseContractController {
             return ResponseEntity.ok()
                     .contentType(mediaType)
                     .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "inline; filename=\"" + filePath.getFileName() + "\"")
+                            "attachment; filename=\"" + filePath.getFileName() + "\"")
+                    .header("X-Content-Type-Options", "nosniff")
                     .body(resource);
         } catch (Exception exception) {
             throw new BusinessException("合同附件读取失败");

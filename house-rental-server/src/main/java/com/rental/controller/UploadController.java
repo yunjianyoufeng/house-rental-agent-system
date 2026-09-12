@@ -2,6 +2,8 @@ package com.rental.controller;
 
 import com.rental.common.RequestUserUtil;
 import com.rental.common.Result;
+import com.rental.common.UploadContentValidator;
+import com.rental.service.RequestLimitService;
 import com.rental.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,7 +19,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.io.InputStream;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -36,9 +40,21 @@ public class UploadController {
     @Value("${app.upload.base-dir:./uploads}")
     private String uploadBaseDir;
 
+    private final RequestLimitService requestLimitService;
+
+    public UploadController(RequestLimitService requestLimitService) {
+        this.requestLimitService = requestLimitService;
+    }
+
+    private void checkUploadQuota(HttpServletRequest request) {
+        requestLimitService.check("upload-user", String.valueOf(RequestUserUtil.getCurrentUserId(request)),
+                100, Duration.ofDays(1));
+    }
+
     @PostMapping(value = "/landlord/upload/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<String> uploadImage(@RequestParam("file") MultipartFile file, HttpServletRequest request) {
         RequestUserUtil.checkLandlordRole(request);
+        checkUploadQuota(request);
         return Result.success(store(file, "images", IMAGE_EXTENSIONS, MAX_IMAGE_SIZE));
     }
 
@@ -48,6 +64,7 @@ public class UploadController {
         if (!"LANDLORD".equals(role) && !"ADMIN".equals(role)) {
             throw new BusinessException("当前角色不允许上传合同附件");
         }
+        checkUploadQuota(request);
         return Result.success(store(file, "contracts", FILE_EXTENSIONS, MAX_FILE_SIZE));
     }
 
@@ -68,11 +85,16 @@ public class UploadController {
         String dateFolder = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
         Path targetDir = Paths.get(uploadBaseDir, folder, dateFolder).toAbsolutePath().normalize();
 
-        try {
+        try (InputStream input = file.getInputStream()) {
+            byte[] content = input.readNBytes((int) maxSize + 1);
+            if (content.length > maxSize) {
+                throw new BusinessException("上传文件大小超出限制");
+            }
+            UploadContentValidator.validate(content, extension);
             Files.createDirectories(targetDir);
             String filename = UUID.randomUUID().toString().replace("-", "") + extension;
             Path targetFile = targetDir.resolve(filename);
-            Files.copy(file.getInputStream(), targetFile, StandardCopyOption.REPLACE_EXISTING);
+            Files.write(targetFile, content, StandardOpenOption.CREATE_NEW);
             return "/uploads/" + folder + "/" + dateFolder + "/" + filename;
         } catch (IOException e) {
             throw new BusinessException("文件上传失败");

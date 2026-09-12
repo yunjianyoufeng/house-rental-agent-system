@@ -37,8 +37,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 )
                 .excludePathPatterns(
                         "/auth/login",
-                        "/auth/register",
-                        "/recommend/house"
+                        "/auth/register"
                 );
     }
 

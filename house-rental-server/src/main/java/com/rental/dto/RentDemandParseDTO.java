@@ -1,12 +1,14 @@
 package com.rental.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
 public class RentDemandParseDTO {
 
     @NotBlank(message = "请输入租房需求")
+    @Size(max = 2000, message = "租房需求不能超过2000字")
     private String query;
 
     /**

@@ -7,8 +7,11 @@ export const useUserStore = defineStore('user', {
 
   actions: {
     setUserInfo(userInfo) {
-      this.userInfo = userInfo
-      localStorage.setItem('userInfo', JSON.stringify(userInfo))
+      // 仅保存显示所需资料，任何后端兼容字段中的 token 都不能持久化。
+      const profile = { ...userInfo }
+      delete profile.token
+      this.userInfo = profile
+      localStorage.setItem('userInfo', JSON.stringify(profile))
     },
 
     clearUserInfo() {

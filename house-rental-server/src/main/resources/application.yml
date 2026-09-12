@@ -46,8 +46,13 @@ spring:
 
 
 app:
+  demo:
+    enabled: ${DEMO_ENABLED:false}
+  session:
+    # 本地 HTTP 调试为 false；HTTPS 部署必须显式设为 true。
+    cookie-secure: ${SESSION_COOKIE_SECURE:false}
   payment:
-    demo-mode: ${PAYMENT_DEMO_MODE:true}
+    demo-mode: ${PAYMENT_DEMO_MODE:false}
     app-name: ${PAYMENT_APP_NAME:house-rental-system}
 
 

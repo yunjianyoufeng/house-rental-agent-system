@@ -132,6 +132,7 @@ public class LeaseOrderServiceImpl implements LeaseOrderService {
 
     @Override
     public PaymentStartVO startPayment(Long id, LeaseOrderPayDTO dto) {
+        requireDemoPayment();
         LeaseOrder order = validatePayableOrder(id);
         String payType = normalizePayType(dto.getPayType());
 
@@ -166,6 +167,7 @@ public class LeaseOrderServiceImpl implements LeaseOrderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void pay(Long id, LeaseOrderPayDTO dto) {
+        requireDemoPayment();
         LeaseOrder order = validatePayableOrder(id);
         String payType = normalizePayType(dto.getPayType());
 
@@ -319,6 +321,13 @@ public class LeaseOrderServiceImpl implements LeaseOrderService {
             return user.getUsername();
         }
         return "用户" + userId;
+    }
+
+    private void requireDemoPayment() {
+        // 尚未接入支付平台验签回调，非演示环境必须拒绝模拟收款及状态变更。
+        if (!paymentProperties.isDemoMode()) {
+            throw new BusinessException("在线支付尚未开通，请联系平台；当前环境不允许模拟支付");
+        }
     }
 
     private String normalizePayType(String rawPayType) {

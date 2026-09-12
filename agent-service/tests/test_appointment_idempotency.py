@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
-from app.tools.appointment_tools import confirm_appointment, prepare_appointment
+from app.tools.appointment_tools import confirm_appointment, prepare_appointment, is_explicit_confirmation
 
 
 class AppointmentIdempotencyTest(unittest.IsolatedAsyncioTestCase):
@@ -37,6 +37,7 @@ class AppointmentIdempotencyTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(first["requestKey"], second["requestKey"])
         self.assertEqual(64, len(first["requestKey"]))
+        self.assertNotEqual(first["confirmationVersion"], second["confirmationVersion"])
 
     async def test_confirm_forwards_request_key(self):
         pending = {
@@ -45,6 +46,7 @@ class AppointmentIdempotencyTest(unittest.IsolatedAsyncioTestCase):
             "appointmentTime": "2026-08-24T10:00:00+08:00",
             "remark": "上午看房",
             "requestKey": "stable-request-key",
+            "confirmationVersion": "version-at-start",
         }
         with (
             patch(
@@ -65,12 +67,41 @@ class AppointmentIdempotencyTest(unittest.IsolatedAsyncioTestCase):
                 8,
                 "Bearer token",
                 True,
+                "version-at-start",
+                True,
             )
 
         self.assertEqual(
             "stable-request-key",
             backend.await_args.args[1]["requestKey"],
         )
+
+    async def test_changed_pending_requires_another_confirmation(self):
+        with (
+            patch("app.tools.appointment_tools.get_pending_appointment",
+                  new=AsyncMock(return_value={"confirmationVersion": "new-version"})),
+            patch("app.tools.appointment_tools.post_backend_data", new=AsyncMock()) as backend,
+        ):
+            with self.assertRaisesRegex(ValueError, "已变更"):
+                await confirm_appointment("conversation-1", 8, "Bearer token", True, "old-version", True)
+        backend.assert_not_awaited()
+
+    async def test_model_cannot_confirm_without_user_confirmation(self):
+        with (
+            patch("app.tools.appointment_tools.get_pending_appointment",
+                  new=AsyncMock(return_value={"confirmationVersion": "version"})),
+            patch("app.tools.appointment_tools.post_backend_data", new=AsyncMock()) as backend,
+        ):
+            with self.assertRaisesRegex(ValueError, "单独回复"):
+                await confirm_appointment("conversation-1", 8, "Bearer token", True, "version", False)
+        backend.assert_not_awaited()
+
+    def test_confirmation_does_not_accept_negation_or_edits(self):
+        for message in ("不要确认预约", "把时间改到明天然后确认预约", "他说确认预约", "可以取消吗？"):
+            with self.subTest(message=message):
+                self.assertFalse(is_explicit_confirmation(message))
+        for message in ("确认预约", "好的", "可以！"):
+            self.assertTrue(is_explicit_confirmation(message))
 
 
 if __name__ == "__main__":

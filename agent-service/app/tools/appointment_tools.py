@@ -1,6 +1,8 @@
 from datetime import datetime
 import hashlib
+import re
 from typing import Any
+from uuid import uuid4
 
 from app.core.config import get_settings
 from app.services.backend_client import post_backend_data
@@ -57,6 +59,13 @@ APPOINTMENT_TOOL_DEFINITIONS: list[dict[str, Any]] = [
 
 
 PENDING_NAMESPACE = "appointment"
+
+
+def is_explicit_confirmation(message: str) -> bool:
+    """只接受独立的确认表达，不能让模型把否定、引用或修改要求当作授权。"""
+    return re.fullmatch(
+        r"(?:确认预约|确认|确定预约|好的|可以)[。！!\s]*", message.strip()
+    ) is not None
 
 
 def _check_conversation_identity(
@@ -118,6 +127,8 @@ async def prepare_appointment(
     normalized_time = appointment_time.isoformat(timespec="seconds")
 
     pending = {
+        # 每次重新准备都换版本，即使参数相同也必须再次展示并等待下一轮确认。
+        "confirmationVersion": uuid4().hex,
         "houseId": house.get("id"),
         "houseTitle": house.get("title"),
         "address": house.get("address"),
@@ -152,6 +163,8 @@ async def confirm_appointment(
     user_id: int | None,
     authorization: str | None,
     pending_at_start: bool,
+    confirmation_version: str | None = None,
+    explicit_confirmation: bool = False,
 ) -> dict[str, Any]:
     conversation_id, user_id = _check_conversation_identity(
         conversation_id, user_id
@@ -161,6 +174,10 @@ async def confirm_appointment(
     pending = await get_pending_appointment(conversation_id, user_id)
     if pending is None:
         raise ValueError("当前没有有效的待确认预约，请重新提供预约信息。")
+    if not explicit_confirmation:
+        raise ValueError("请单独回复“确认预约”后再提交预约。")
+    if not confirmation_version or pending.get("confirmationVersion") != confirmation_version:
+        raise ValueError("预约信息已变更，请核对新的预约摘要并在下一轮重新确认。")
     if not authorization:
         raise ValueError("登录状态已失效，无法创建预约。")
 
@@ -212,6 +229,8 @@ async def execute_appointment_tool(
     user_id: int | None,
     authorization: str | None,
     pending_at_start: bool,
+    confirmation_version: str | None = None,
+    explicit_confirmation: bool = False,
 ) -> Any:
     if name == "prepare_appointment":
         return await prepare_appointment(arguments, conversation_id, user_id)
@@ -221,6 +240,8 @@ async def execute_appointment_tool(
             user_id,
             authorization,
             pending_at_start,
+            confirmation_version,
+            explicit_confirmation,
         )
     if name == "cancel_appointment_preparation":
         return await cancel_appointment_preparation(conversation_id, user_id)

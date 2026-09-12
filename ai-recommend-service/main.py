@@ -84,13 +84,13 @@ model = load_sentence_model()
 
 class HouseItem(BaseModel):
     id: int = Field(..., description="房源ID")
-    text: str = Field(..., description="房源文本")
+    text: str = Field(..., max_length=4000, description="房源文本")
 
 
 class RecommendRequest(BaseModel):
-    query: str = Field(..., description="用户自然语言租房需求")
-    houses: List[HouseItem] = Field(default_factory=list, description="候选房源列表")
-    topK: int = Field(default=5, description="返回推荐数量")
+    query: str = Field(..., min_length=1, max_length=2000, description="用户自然语言租房需求")
+    houses: List[HouseItem] = Field(default_factory=list, max_length=200, description="候选房源列表")
+    topK: int = Field(default=5, ge=1, le=20, description="返回推荐数量")
 
 
 class RecommendResult(BaseModel):
@@ -108,6 +108,8 @@ class EmbeddingRequest(BaseModel):
         cleaned = [text.strip() for text in texts]
         if any(not text for text in cleaned):
             raise ValueError("待向量化文本不能为空")
+        if any(len(text) > 4000 for text in cleaned):
+            raise ValueError("单条向量化文本不能超过4000字")
         return cleaned
 
 

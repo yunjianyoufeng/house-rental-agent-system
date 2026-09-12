@@ -9,7 +9,7 @@
         </el-form-item>
 
         <el-form-item label="密码">
-          <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password />
+          <el-input v-model="form.password" type="password" placeholder="请输入12至72个字符的密码" show-password />
         </el-form-item>
 
         <el-form-item label="姓名">
